@@ -1,0 +1,127 @@
+<?xml version="1.0" ?>
+<CityOSPlan version="1.0" source="README.md + conversation">
+  <Project>
+    <CurrentName>WalkSafe</CurrentName>
+    <PivotName>CityOS</PivotName>
+    <Vision>Evolve the pedestrian-safety app into a broader civic operating system for mobility, infrastructure, sanitation, and municipal planning.</Vision>
+  </Project>
+  <CurrentState>
+    <WhatExistsNow>Safety-first routing, live danger zone overlays, real-time navigation, SOS alerts, incident reporting, operator moderation, H3-based safety zones, and a FastAPI + Flutter + PostGIS + Valhalla stack.</WhatExistsNow>
+    <RelevantREADMEReferences>WalkSafe currently prioritizes safety over speed, includes incident reporting and SOS, uses H3 zones, and already lists media uploads as a planned feature.</RelevantREADMEReferences>
+  </CurrentState>
+  <Modules>
+    <Module name="SafeMobility">
+      <Description>Safety-first pedestrian routing, SOS, danger-zone overlays, and incident-aware route updates.</Description>
+    </Module>
+    <Module name="WasteManagement">
+      <Description>Citizen reports for illegal dumping, overflowing bins, garbage burning, dead animals, and construction debris.</Description>
+    </Module>
+    <Module name="InfrastructureReporting">
+      <Description>Citizen reports for potholes, broken streetlights, damaged footpaths, fallen trees, broken signals, water leaks, and waterlogging.</Description>
+    </Module>
+    <Module name="CivicAnalytics">
+      <Description>Ward-level dashboards, heatmaps, trends, response metrics, and planning insights for authorities.</Description>
+    </Module>
+    <Module name="DemoSeeder">
+      <Description>Mock users, mock reports, sample images, seeded city layers, and instant demo dashboards.</Description>
+    </Module>
+    <Module name="DeploymentProfiles">
+      <Description>Local, demo, AWS, and production profiles that switch storage, tunnel, database, and hosting behavior by config.</Description>
+    </Module>
+  </Modules>
+  <FeatureList>
+    <Group name="CitizenReporting">
+      <Item>Photo + location + category + severity submission flow.</Item>
+      <Item>User-selected report labels instead of mandatory AI image classification.</Item>
+      <Item>Optional explanation/notes field.</Item>
+      <Item>Immediate dashboard visibility for authorities.</Item>
+    </Group>
+    <Group name="MapAndScoring">
+      <Item>H3-based aggregation and heatmap redraws.</Item>
+      <Item>Safety routing refresh every 6 hours.</Item>
+      <Item>Infrastructure and sanitation redraw every 36 to 48 hours.</Item>
+      <Item>Hourly ingestion of new reports.</Item>
+      <Item>Decay/aging of old reports so stale issues lose weight over time.</Item>
+    </Group>
+    <Group name="Analytics">
+      <Item>Ward-wise issue counts and hot spots.</Item>
+      <Item>Priority ranking of unresolved issues.</Item>
+      <Item>Weekly citywide summaries.</Item>
+      <Item>Natural-language summaries based on location + description only, if AI is used at all.</Item>
+    </Group>
+    <Group name="DemoMode">
+      <Item>Mock data seeding on competition day.</Item>
+      <Item>Prebuilt dashboards that look populated immediately.</Item>
+      <Item>Config-driven city switching without code changes.</Item>
+    </Group>
+  </FeatureList>
+  <WhatNeedsToChange>
+    <Group name="ProductDirection">
+      <Item>Shift the project pitch from only pedestrian safety to broader city operations.</Item>
+      <Item>Keep WalkSafe as one module instead of the whole product.</Item>
+      <Item>Make the system useful even without always-on hosting or live users.</Item>
+    </Group>
+    <Group name="DataAndBackend">
+      <Item>Add category-based reporting for waste and infrastructure.</Item>
+      <Item>Store images in object storage in cloud mode, or local disk in local mode.</Item>
+      <Item>Replace any always-on AI image pipeline with user labeling and optional lightweight summarization.</Item>
+      <Item>Move heavy recomputation into scheduled jobs.</Item>
+      <Item>Separate live reports from derived heatmaps and analytics.</Item>
+    </Group>
+    <Group name="Deployment">
+      <Item>Support local-only runs for hackathons.</Item>
+      <Item>Support demo mode with seeded mock data.</Item>
+      <Item>Support AWS mode with containerized services.</Item>
+      <Item>Abstract storage, tunnels, and hosting behind config profiles.</Item>
+      <Item>Allow ngrok-based local public demos when needed.</Item>
+    </Group>
+    <Group name="UIUX">
+      <Item>Add category and severity forms.</Item>
+      <Item>Show images, labels, explanations, and map locations on the dashboard.</Item>
+      <Item>Make the app feel instant by deferring slow work to background jobs.</Item>
+    </Group>
+  </WhatNeedsToChange>
+  <DeploymentProfiles>
+    <Profile name="local">
+      <Item>Run everything on a laptop for development or competition day.</Item>
+      <Item>Use local storage or mounted disk for images.</Item>
+      <Item>Use ngrok or equivalent tunnel when a public URL is needed.</Item>
+      <Item>Use seeded mock data and short refresh intervals.</Item>
+    </Profile>
+    <Profile name="demo">
+      <Item>Run a polished competition demo with seeded data and precomputed layers.</Item>
+      <Item>Keep the stack containerized and repeatable.</Item>
+      <Item>Use mock users, reports, and images.</Item>
+      <Item>Expose the app publicly only for the duration of the demo.</Item>
+    </Profile>
+    <Profile name="aws">
+      <Item>Use ECS or a single EC2 + Docker Compose stack for a cheap pilot.</Item>
+      <Item>Use S3 for images and Supabase/Postgres for structured data.</Item>
+      <Item>Keep the same containers and switch behavior through config.</Item>
+    </Profile>
+    <Profile name="production">
+      <Item>CloudFront, managed storage, monitoring, and scheduled workers.</Item>
+      <Item>More frequent backups and stricter ops controls.</Item>
+      <Item>Same codebase, different profile.</Item>
+    </Profile>
+  </DeploymentProfiles>
+  <UpdateCadence>
+    <ReportIngestion>Hourly</ReportIngestion>
+    <SafetyRoutingRecompute>Every 6 hours</SafetyRoutingRecompute>
+    <InfrastructureHeatmapRedraw>Every 36 to 48 hours</InfrastructureHeatmapRedraw>
+    <WeeklyAnalytics>Weekly</WeeklyAnalytics>
+  </UpdateCadence>
+  <Stack>
+    <Frontend>Flutter</Frontend>
+    <API>FastAPI</API>
+    <Routing>Valhalla</Routing>
+    <Database>Supabase PostgreSQL + PostGIS</Database>
+    <SpatialIndexing>H3 + STRtree</SpatialIndexing>
+    <ObjectStorage>S3 in cloud mode; local storage in local mode</ObjectStorage>
+    <DemoTunneling>ngrok in local/demo mode</DemoTunneling>
+  </Stack>
+  <Notes>
+    <Principle>Optimize for reproducibility and low operating cost rather than perpetual hosting.</Principle>
+    <HackathonGoal>A judge should be able to run a fully populated demo from config and seed data on competition day.</HackathonGoal>
+  </Notes>
+</CityOSPlan>

@@ -1,0 +1,14 @@
+services:
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./valhalla_tiles:/custom_files
+    environment:
+      - tile_urls=https://download.geofabrik.de/asia/india/western-zone-latest.osm.pbf
+      - build_elevation=False
+      - build_admins=True
+      - build_time_zones=True
+      - force_rebuild=False
+    restart: unless-stopped

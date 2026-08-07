@@ -1,0 +1,116 @@
+# =========================
+# WalkSafe Repository .gitignore
+# =========================
+
+############################
+# Agent Control Files
+############################
+ARCHITECTURE.md
+TASKS.md
+RULES.md
+DEV_WORKFLOW.md
+BACKENDEXP.md
+INSTRUCTIONS.md
+ROADMAP.md
+instruc.txt
+FUTURE.md
+steps.md
+/walksafe_phase*_prompt*.md
+/deploymentsteps.txt
+/commandsteps/
+
+############################
+# Python
+############################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+############################
+# Python Virtual Environments
+############################
+venv/
+.env/
+.env
+*.env
+!*.env.example
+.venv/
+env/
+############################
+# Python Build
+############################
+build/
+dist/
+*.egg-info/
+
+############################
+# FastAPI / Backend Logs
+############################
+*.log
+backend/.env
+
+############################
+# OSM / Data Pipeline Output
+############################
+logic/output/
+logic/outputs/*.geojson
+logic/outputs/*.graphml
+
+############################
+# Flutter / Dart
+############################
+mobile/.dart_tool/
+mobile/.packages
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/config/dart_defines.json
+
+############################
+# Flutter Platform Builds
+############################
+mobile/android/.gradle/
+mobile/android/app/build/
+
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+
+############################
+# VS Code / Visual Studio
+############################
+.vscode/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+############################
+# OS Files
+############################
+.DS_Store
+Thumbs.db
+
+############################
+# Docker
+############################
+*.pid
+*.seed
+
+############################
+# Misc
+############################
+*.tmp
+*.temp
+*.bak
+/.pytest_cache/
+/cache/
+backend/valhalla_tiles/
+logic/outputs/pune_walk.graphml
+logic/outputs/
+WalkSafeResearch.tex
