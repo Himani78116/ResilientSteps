@@ -1,0 +1,3 @@
+"""
+WalkSafe schemas package.
+"""

@@ -9,10 +9,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 
-from app.db.session import AsyncSessionLocal
-from app.routers.admin import router as admin_router
-from app.routers import reports, routing
-from app.services.safety_dataset_cache import safety_dataset_cache
+from app.core.database import AsyncSessionLocal
+from app.modules.walksafe import router as walksafe_router
+from app.modules.walksafe.services.safety_dataset_cache import safety_dataset_cache
 
 LOGGER = logging.getLogger(__name__)
 _cache_ready = False
@@ -37,8 +36,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="WalkSafe API",
-    description="Safety-aware pedestrian navigation API",
+    title="CityOS API",
+    description="CityOS API — WalkSafe & Multi-Domain Civic Platform",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -69,9 +68,9 @@ class NgrokHeaderMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(NgrokHeaderMiddleware)
 
-app.include_router(admin_router)
-app.include_router(routing.router)
-app.include_router(reports.router)
+# Register WalkSafe module router under /walksafe and at root for backward compatibility
+app.include_router(walksafe_router, prefix="/walksafe", tags=["WalkSafe"])
+app.include_router(walksafe_router)
 
 
 @app.get("/")

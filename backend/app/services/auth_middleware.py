@@ -1,11 +1,4 @@
-"""
-Backward-compatibility stub for authentication middleware.
-Re-exports from app.core.auth_middleware.
-"""
+import sys
+from app.core import auth_middleware as _module
 
-from app.core.auth_middleware import (
-    optional_auth,
-    require_auth,
-)
-
-__all__ = ["require_auth", "optional_auth"]
+sys.modules[__name__] = _module
