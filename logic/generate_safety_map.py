@@ -116,27 +116,45 @@ def _extract_osm_way_id(edge_id, row) -> int:
     return 0
 
 
+def load_city_config() -> dict:
+    import yaml
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "city.yaml")
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+            return data.get("city", data)
+    return {
+        "name": "Pune",
+        "osmnx_place": "Pune, Maharashtra, India",
+        "h3_resolution": 9,
+    }
+
+
 async def run_ingest():
+    city_cfg = load_city_config()
+    city_name = city_cfg.get("name", "pune").lower().replace(" ", "_")
+    osmnx_place = city_cfg.get("osmnx_place", "Pune, Maharashtra, India")
+    h3_res = city_cfg.get("h3_resolution", 9)
+
     print("=" * 60)
-    print("WalkSafe Safety Data Ingest Job")
+    print(f"CityOS Safety Data Ingest Job — {city_cfg.get('name', 'Pune')}")
     print("=" * 60)
 
     dataset_version = datetime.now().strftime("%Y%m%d-%H%M%S")
     print(f"Dataset version: {dataset_version}")
 
-    cache_path = os.path.join(os.path.dirname(__file__), "outputs", "pune_walk.graphml")
+    cache_path = os.path.join(os.path.dirname(__file__), "outputs", f"{city_name}_walk.graphml")
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     if os.path.exists(cache_path):
-        print("Loading cached street graph (delete pune_walk.graphml to re-download)...")
+        print(f"Loading cached street graph ({city_name}_walk.graphml)...")
         graph = ox.load_graphml(cache_path)
     else:
-        print("Downloading Pune street graph from OpenStreetMap...")
+        print(f"Downloading {city_cfg.get('name', 'Pune')} street graph from OpenStreetMap ('{osmnx_place}')...")
         print("This may take 5-10 minutes on first run...")
-        graph = ox.graph_from_place("Pune, Maharashtra, India", network_type="walk")
+        graph = ox.graph_from_place(osmnx_place, network_type="walk")
         ox.save_graphml(graph, cache_path)
         print("Graph cached for future runs.")
-
     edges = ox.graph_to_gdfs(graph, nodes=False)
     total = len(edges)
     print(f"Scoring {total} street segments...")
@@ -239,9 +257,9 @@ async def generate_safety_zones(dataset_version: str, engine):
     cell_scores = {}
     cell_counts = {}
 
+    h3_res = load_city_config().get("h3_resolution", 9)
     for lat, lon, score in rows:
-        cell = h3.latlng_to_cell(lat, lon, 9)
-        cell_scores[cell] = cell_scores.get(cell, 0) + score
+        cell = h3.latlng_to_cell(lat, lon, h3_res)
         cell_counts[cell] = cell_counts.get(cell, 0) + 1
 
     zones_batch = []

@@ -75,7 +75,9 @@ class SafetyFeatureEngine:
         incident_heat_penalty_multiplier: float = 8.0,
         max_incident_heat_penalty: float = 18.0,
         intersection_radius_m: float = 120.0,
+        tz_name: str = "Asia/Kolkata",
     ) -> None:
+        self._tz_name = tz_name
         self._incident_points = incident_points_metric or []
         self._incident_metadata = self._normalize_incident_metadata(
             incident_metadata,
@@ -133,11 +135,18 @@ class SafetyFeatureEngine:
 
         # Step 4: Estimate time-of-day safety factor.
         timestamp = at_time or datetime.now(timezone.utc)
-        pune_tz = timezone(timedelta(hours=5, minutes=30))
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=timezone.utc)
-        pune_timestamp = timestamp.astimezone(pune_tz)
-        time_of_day_factor = self._time_of_day_factor(pune_timestamp.hour)
+
+        try:
+            import zoneinfo
+            city_tz = zoneinfo.ZoneInfo(self._tz_name)
+            local_timestamp = timestamp.astimezone(city_tz)
+        except Exception:
+            local_tz = timezone(timedelta(hours=5, minutes=30))
+            local_timestamp = timestamp.astimezone(local_tz)
+
+        time_of_day_factor = self._time_of_day_factor(local_timestamp.hour)
 
         # Step 5: Propagate nearby incident hotspot risk into the segment score.
         incident_heat = self._calculate_incident_heat(segment_geometry_metric)
