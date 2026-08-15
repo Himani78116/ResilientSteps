@@ -1,0 +1,11 @@
+city:
+  name: "Pune"
+  state: "Maharashtra"
+  country: "India"
+  center:
+    lat: 18.5204
+    lon: 73.8567
+  osmnx_place: "Pune, Maharashtra, India"
+  h3_resolution: 9
+  timezone: "Asia/Kolkata"
+  valhalla_tile_url: "https://download.geofabrik.de/asia/india/western-zone-latest.osm.pbf"

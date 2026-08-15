@@ -1,0 +1,45 @@
+road_type_scores:
+  footway: 90
+  pedestrian: 90
+  living_street: 80
+  path: 75
+  cycleway: 72
+  residential: 70
+  service: 60
+  unclassified: 55
+  tertiary: 50
+  secondary: 40
+  primary: 30
+  trunk: 20
+  motorway: 5
+  default: 50
+
+modifiers:
+  lighting_bonus: 10
+  sidewalk_bonus: 5
+  speed_penalty_per_10kmh: 3
+
+incident_weights:
+  stalking: 1.0
+  harassment: 0.9
+  suspicious_activity: 0.8
+  unsafe_infrastructure: 0.7
+  poor_lighting: 0.6
+  default: 0.65
+
+incident_decay:
+  days_7: 1.0
+  days_30: 0.8
+  days_90: 0.55
+  older: 0.3
+
+runtime_risk_engine:
+  road_match_distance_m: 20.0
+  incident_penalty_scale: 12.0
+  max_incident_penalty: 25.0
+  incident_match_distance_m: 30.0
+
+zone_thresholds:
+  safe: 70
+  cautious: 40
+  risky: 0
