@@ -5,13 +5,19 @@ import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 
 from app.core.database import AsyncSessionLocal
 from app.modules.walksafe import router as walksafe_router
+from app.modules.infrastructure import router as infra_router
+from app.modules.waste import router as waste_router
+from app.modules.dashboard import router as dashboard_router
 from app.modules.walksafe.services.safety_dataset_cache import safety_dataset_cache
+from app.core.config import load_config
 
 LOGGER = logging.getLogger(__name__)
 _cache_ready = False
@@ -42,16 +48,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+config_data = load_config()
+profile_cfg = config_data.get("profile", {})
+raw_cors = profile_cfg.get("cors", {}).get("origins", ["*"])
+if isinstance(raw_cors, str):
+    cors_origins = [o.strip() for o in raw_cors.split(",") if o.strip()]
+elif isinstance(raw_cors, list):
+    cors_origins = raw_cors
+else:
+    cors_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8080",
-        # ngrok tunnel — update this when your tunnel URL changes.
-        "https://unflickering-marissa-lingually.ngrok-free.dev",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "ngrok-skip-browser-warning"],
@@ -72,10 +81,40 @@ app.add_middleware(NgrokHeaderMiddleware)
 app.include_router(walksafe_router, prefix="/walksafe", tags=["WalkSafe"])
 app.include_router(walksafe_router)
 
+# Register Infrastructure module router under /infra
+app.include_router(infra_router, prefix="/infra", tags=["Infrastructure"])
+
+# Register Waste Management module router under /waste
+app.include_router(waste_router, prefix="/waste", tags=["Waste Management"])
+
+# Register Dashboard module router under /dashboard
+app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])
+
+# Mount static web dashboard UI
+static_dir = Path(__file__).parent / "static" / "dashboard"
+if static_dir.exists():
+    app.mount("/dashboard-ui", StaticFiles(directory=str(static_dir), html=True), name="dashboard-ui")
 
 @app.get("/")
 async def root():
     return {"message": "WalkSafe API is running", "status": "online"}
+
+
+@app.get("/city")
+async def get_city_info():
+    """
+    Returns city metadata (name, center coordinates, timezone) for mobile/client initialization.
+    """
+    cfg = load_config()
+    city = cfg.get("city", {})
+    return {
+        "city": city.get("name", "Pune"),
+        "state": city.get("state", "Maharashtra"),
+        "country": city.get("country", "India"),
+        "center": city.get("center", {"lat": 18.5204, "lon": 73.8567}),
+        "h3_resolution": city.get("h3_resolution", 9),
+        "timezone": city.get("timezone", "Asia/Kolkata"),
+    }
 
 
 @app.get("/ready")
