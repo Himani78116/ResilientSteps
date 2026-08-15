@@ -1,13 +1,4 @@
-"""
-Backward-compatibility stub for database session.
-Re-exports from app.core.database.
-"""
+import sys
+from app.core import database as _module
 
-from app.core.database import (
-    DATABASE_URL,
-    AsyncSessionLocal,
-    engine,
-    get_db,
-)
-
-__all__ = ["DATABASE_URL", "AsyncSessionLocal", "engine", "get_db"]
+sys.modules[__name__] = _module
