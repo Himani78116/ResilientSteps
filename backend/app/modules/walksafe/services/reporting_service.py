@@ -57,9 +57,14 @@ class ReportingService:
 
     async def create_report(
         self,
-        report: ReportCreate,
+        report: Any,
         db: AsyncSession,
+        *,
+        report_type: str = "safety",
+        severity: int = 3,
     ) -> Dict[str, Any]:
+        severity_val = getattr(report, "severity", severity)
+        report_type_val = getattr(report, "report_type", report_type)
         result = await db.execute(
             text(
                 """
@@ -69,7 +74,9 @@ class ReportingService:
                     description,
                     location,
                     status,
-                    confidence
+                    confidence,
+                    report_type,
+                    severity
                 )
                 VALUES (
                     :user_hash,
@@ -77,7 +84,9 @@ class ReportingService:
                     :description,
                     ST_SetSRID(ST_MakePoint(:lon, :lat), 4326),
                     'pending',
-                    :confidence
+                    :confidence,
+                    :report_type,
+                    :severity
                 )
                 RETURNING id::text AS id, status, confidence, submitted_at
                 """
@@ -89,6 +98,8 @@ class ReportingService:
                 "lon": report.lon,
                 "lat": report.lat,
                 "confidence": self.base_confidence,
+                "report_type": report_type_val,
+                "severity": severity_val,
             },
         )
         row = result.fetchone()
@@ -101,26 +112,33 @@ class ReportingService:
         *,
         limit: int,
         db: AsyncSession,
+        report_type: str | None = "safety",
     ) -> List[Dict[str, Any]]:
+        where_clause = "WHERE status = 'verified'"
+        params: Dict[str, Any] = {"limit": int(limit)}
+        if report_type is not None:
+            where_clause += " AND COALESCE(report_type, 'safety') = :report_type"
+            params["report_type"] = report_type
+
         result = await db.execute(
             text(
-                """
+                f"""
                 SELECT
                     id::text AS id,
                     ST_Y(location) AS lat,
                     ST_X(location) AS lon,
                     category AS incident_type,
-                    3 AS severity,
+                    COALESCE(severity, 3) AS severity,
                     confidence AS confidence_score,
                     submitted_at AS created_at,
                     status
                 FROM incident_reports
-                WHERE status = 'verified'
+                {where_clause}
                 ORDER BY submitted_at DESC
                 LIMIT :limit
                 """
             ),
-            {"limit": int(limit)},
+            params,
         )
         rows = result.fetchall()
         return [dict(row._mapping) for row in rows]
@@ -176,6 +194,7 @@ class ReportingService:
                 )
                 AND nearest.distance_m <= :incident_match_distance_m
                 AND LOWER(COALESCE(report.status, 'pending')) = 'verified'
+                AND COALESCE(report.report_type, 'safety') = 'safety'
             )
             SELECT
                 road_segment_id,

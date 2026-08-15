@@ -52,12 +52,14 @@ async def require_admin(x_admin_key: str = Header(...)):
 @router.get("/reports")
 async def list_reports(
     status: str = "pending",
+    report_type: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_admin),
 ):
     """
-    List incident reports by status.
+    List incident reports by status and optional report_type.
     status can be: pending, verified, rejected
+    report_type can be: safety, infrastructure, waste, etc.
     """
     if status not in ("pending", "verified", "rejected"):
         raise HTTPException(
@@ -65,6 +67,7 @@ async def list_reports(
             detail="status must be one of: pending, verified, rejected",
         )
 
+    params: dict = {"status": status, "report_type": report_type}
     result = await db.execute(
         text(
             """
@@ -78,19 +81,23 @@ async def list_reports(
                 status,
                 confidence,
                 submitted_at,
-                moderated_at
+                moderated_at,
+                COALESCE(report_type, 'safety') AS report_type,
+                COALESCE(severity, 3) AS severity
             FROM incident_reports
             WHERE status = :status
+            AND (:report_type IS NULL OR report_type = :report_type)
             ORDER BY submitted_at DESC
             LIMIT 100
             """
         ),
-        {"status": status},
+        params,
     )
 
     rows = result.fetchall()
     return {
         "status_filter": status,
+        "report_type_filter": report_type,
         "count": len(rows),
         "reports": [dict(row._mapping) for row in rows],
     }
