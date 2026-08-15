@@ -1,0 +1,36 @@
+profile: production
+description: "Production deployment with monitoring"
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 8
+
+database:
+  source: "env"
+
+storage:
+  type: "s3"
+  bucket: "${S3_BUCKET}"
+  region: "${AWS_REGION}"
+
+valhalla:
+  url: "${VALHALLA_URL}"
+
+tunnel:
+  enabled: false
+
+monitoring:
+  sentry_dsn: "${SENTRY_DSN}"
+  log_level: "WARNING"
+
+cache:
+  safety_dataset_refresh_seconds: 600
+
+cors:
+  origins: "${CORS_ORIGINS}"
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"

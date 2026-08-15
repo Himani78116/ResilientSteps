@@ -1,0 +1,31 @@
+profile: aws
+description: "AWS pilot deployment"
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 4
+
+database:
+  source: "env"
+
+storage:
+  type: "s3"
+  bucket: "${S3_BUCKET}"
+  region: "${AWS_REGION}"
+
+valhalla:
+  url: "${VALHALLA_URL}"
+
+tunnel:
+  enabled: false
+
+demo:
+  seed_data: false
+
+cache:
+  safety_dataset_refresh_seconds: 300
+
+cors:
+  origins: "${CORS_ORIGINS}"
