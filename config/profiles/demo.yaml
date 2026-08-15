@@ -1,0 +1,37 @@
+profile: demo
+description: "Competition day demo with seeded data"
+
+backend:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 1
+
+database:
+  source: "env"
+
+storage:
+  type: "local"
+  path: "backend/uploads/"
+
+valhalla:
+  url: "http://localhost:8002"
+
+tunnel:
+  enabled: true
+  provider: "ngrok"
+  domain: "${NGROK_DOMAIN}"
+
+demo:
+  seed_data: true
+  mock_users: true
+  mock_user_count: 10
+  mock_report_count: 200
+  precompute_heatmaps: true
+
+cache:
+  safety_dataset_refresh_seconds: 300
+
+cors:
+  origins:
+    - "*"
