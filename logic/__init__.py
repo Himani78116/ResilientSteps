@@ -1,1 +1,1 @@
-"""WalkSafe safety-data generation and serving package."""
+"""ResilientSteps safety-data generation and serving package."""

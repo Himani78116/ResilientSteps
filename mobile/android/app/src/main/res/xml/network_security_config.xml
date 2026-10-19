@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <!--
-        WalkSafe local development network security config.
+        ResilientSteps local development network security config.
         Permits cleartext (plain HTTP) traffic to local development addresses only.
         10.0.2.2    = Android emulator loopback to host machine
         10.0.3.2    = Genymotion emulator loopback to host machine

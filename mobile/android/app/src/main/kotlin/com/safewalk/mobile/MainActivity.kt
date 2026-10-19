@@ -71,7 +71,7 @@ class MainActivity : FlutterActivity() {
                 } else {
                     pendingRequest.result.error(
                         "PERMISSION_DENIED",
-                        "SMS permission denied. WalkSafe cannot send device-local SOS alerts without it.",
+                        "SMS permission denied. ResilientSteps cannot send device-local SOS alerts without it.",
                         null,
                     )
                 }

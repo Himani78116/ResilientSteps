@@ -2,16 +2,16 @@
 
 ## Goal
 
-Add a new CityOS module that lets citizens report infrastructure issues —
+Add a new ResilientSteps module that lets citizens report infrastructure issues —
 potholes, broken streetlights, damaged footpaths, fallen trees, broken traffic
 signals, water leaks, and waterlogging. These reports flow through the same
-moderation pipeline as WalkSafe incident reports but are stored with structured
+moderation pipeline as ResilientSteps incident reports but are stored with structured
 categories, severity levels, and (eventually) photo attachments.
 
 ## Prerequisites
 
 - **Phase 1 complete**: The backend has `app/modules/` and `app/core/` structure.
-- All existing WalkSafe tests pass.
+- All existing ResilientSteps tests pass.
 - The BASELINE.md document has been read.
 
 ---
@@ -191,7 +191,7 @@ VALUES (:user_hash, :category, :description, ST_SetSRID(ST_MakePoint(:lon, :lat)
 ```
 
 Default `report_type='safety'` preserves backward compatibility for
-existing WalkSafe report submissions.
+existing ResilientSteps report submissions.
 
 ### 6. Logic Pipeline — Infrastructure Heatmap (Optional in Phase 2)
 
@@ -259,7 +259,7 @@ python -m pytest tests/ -v
 3. `GET /admin/reports?status=pending&report_type=infrastructure` → shows only infra reports
 4. `GET /admin/reports?status=pending` (no filter) → shows both safety + infra reports
 5. `POST /admin/reports/{id}/verify` → works for infra reports
-6. Existing `POST /reports` (WalkSafe) still works with `report_type='safety'` default
+6. Existing `POST /reports` (ResilientSteps) still works with `report_type='safety'` default
 
 ### Migration Verification
 
@@ -292,4 +292,4 @@ alembic upgrade head   # re-applies cleanly
 | Adding columns to `incident_reports` breaks existing queries | `report_type DEFAULT 'safety'` and `severity DEFAULT 3` ensure backward compat |
 | Category validation against DB adds a query to every report submission | Cache categories in memory (they rarely change) |
 | Mobile navigation becomes cluttered with new module entries | Use a module switcher or tabbed interface, not individual buttons |
-| Infrastructure reports pollute WalkSafe safety scoring | `risk_engine.py` and `reporting_service.py` already filter by `status='verified'`; add `AND report_type='safety'` to incident penalty queries |
+| Infrastructure reports pollute ResilientSteps safety scoring | `risk_engine.py` and `reporting_service.py` already filter by `status='verified'`; add `AND report_type='safety'` to incident penalty queries |

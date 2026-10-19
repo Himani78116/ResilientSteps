@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make CityOS deployable for any city by parameterizing all Pune-specific values.
+Make ResilientSteps deployable for any city by parameterizing all Pune-specific values.
 A new city deployment should require only:
 
 1. A `city.yaml` config file with the city's coordinates and name.

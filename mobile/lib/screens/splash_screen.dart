@@ -40,35 +40,14 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: <Color>[Color(0xFF2E6DF6), Color(0xFF6CA4FF)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Icon(Icons.shield_outlined, color: Colors.white, size: 76),
-              SizedBox(height: 14),
-              Text(
-                'WalkSafe',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                'Safer routes for safer walks',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-              ),
-            ],
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Image.asset(
+            'assets/f-logo.png',
+            width: 260,
+            fit: BoxFit.contain,
           ),
         ),
       ),

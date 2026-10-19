@@ -302,7 +302,7 @@ class SosService {
         'Location: https://www.google.com/maps?q=$latitude,$longitude\n'
         'Coordinates: $latitude, $longitude\n'
         'Time: $localTime\n\n'
-        'WalkSafe will keep sending live updates while SOS is active.';
+        'ResilientSteps will keep sending live updates while SOS is active.';
   }
 
   Future<SosSendResult> _sendAlert({
@@ -393,7 +393,7 @@ class SosService {
           failedRecipients: const <SosRecipientStatus>[],
           skippedRecipients: resolvedContacts.skippedRecipients,
           generalError:
-              'WalkSafe could not read your current GPS location. Enable location access and try again.',
+              'ResilientSteps could not read your current GPS location. Enable location access and try again.',
           locationUnavailable: true,
         );
         _applyCompletedResult(result);

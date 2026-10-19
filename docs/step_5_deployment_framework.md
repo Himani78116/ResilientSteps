@@ -31,7 +31,7 @@ the FastAPI backend, a demo data seeder, and one-command deployment scripts.
 - **Tunnel**: ngrok started manually; domain hardcoded in CORS config at
   `backend/app/main.py` line 54.
 - **Batch scripts**: 9 `.bat` files in `commandsteps/` for Windows deployment
-  steps. Reference path is `C:\test\WalkSafeCodex\mobile\` (not even this repo's path).
+  steps. Reference path is `C:\test\ResilientStepsCodex\mobile\` (not even this repo's path).
 
 ### Config files that do NOT exist
 
@@ -52,7 +52,7 @@ All configuration is in `.env` files with no structured profiles.
 **New directory**: `config/` at project root
 
 ```
-CityOS/
+ResilientSteps/
 ├── config/
 │   ├── profiles/
 │   │   ├── local.yaml
@@ -386,7 +386,7 @@ volumes:
 
 ```python
 """
-CityOS Demo Data Seeder
+ResilientSteps Demo Data Seeder
 ========================
 Seeds the database with realistic mock data for competition demos.
 
@@ -419,7 +419,7 @@ Depends on: backend/.env for DATABASE_URL
 PROFILE=${1:-local}
 export CITYOS_PROFILE=$PROFILE
 
-echo "Starting CityOS with profile: $PROFILE"
+echo "Starting ResilientSteps with profile: $PROFILE"
 
 if [ "$PROFILE" = "demo" ]; then
     echo "Seeding demo data..."
@@ -427,7 +427,7 @@ if [ "$PROFILE" = "demo" ]; then
 fi
 
 docker compose up -d
-echo "CityOS is running at http://localhost:8000"
+echo "ResilientSteps is running at http://localhost:8000"
 ```
 
 ---

@@ -1,6 +1,6 @@
-# WalkSafe Linux Host Setup
+# ResilientSteps Linux Host Setup
 
-This guide is for moving the local WalkSafe stack to a fresh Pop!_OS machine and running it reliably with Linux tools.
+This guide is for moving the local ResilientSteps stack to a fresh Pop!_OS machine and running it reliably with Linux tools.
 
 What this guide covers:
 - Git + repo clone
@@ -244,7 +244,7 @@ curl http://localhost:8000/
 Expected response:
 
 ```json
-{"message":"WalkSafe API is running","status":"online"}
+{"message":"ResilientSteps API is running","status":"online"}
 ```
 
 ## 9. Install ngrok on Linux

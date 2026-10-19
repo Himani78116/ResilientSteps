@@ -713,7 +713,7 @@ class EmergencyButton extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Icon(Icons.sos_rounded, color: Colors.white),
+                Icon(Icons.emergency_rounded, color: Colors.white),
                 SizedBox(width: 8),
                 Text(
                   'SOS',
@@ -1022,7 +1022,7 @@ Future<void> showSosLocationRequiredDialog(BuildContext context) {
     builder: (_) => AlertDialog(
       title: const Text('Location required for SOS'),
       content: const Text(
-        'WalkSafe needs your GPS location to send an accurate SOS alert.\n\n'
+        'ResilientSteps needs your GPS location to send an accurate SOS alert.\n\n'
         'Please enable location permissions in your phone settings, then try again.\n\n'
         'If you need immediate help, call 112.',
       ),

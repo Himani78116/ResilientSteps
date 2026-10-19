@@ -1,7 +1,7 @@
 services:
   backend:
     build: ./backend
-    container_name: cityos_backend
+    container_name: resilientsteps_backend
     ports:
       - "8000:8000"
     env_file:
@@ -17,7 +17,7 @@ services:
 
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
-    container_name: cityos_valhalla
+    container_name: resilientsteps_valhalla
     ports:
       - "8002:8002"
     volumes:

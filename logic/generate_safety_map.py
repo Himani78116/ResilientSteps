@@ -1,5 +1,5 @@
 """
-WalkSafe Safety Data Ingest Job
+ResilientSteps Safety Data Ingest Job
 ================================
 Run this script to populate the database with real safety scores from OpenStreetMap.
 This replaces ALL synthetic/random data. Run it once on setup, then periodically.
@@ -137,7 +137,7 @@ async def run_ingest():
     h3_res = city_cfg.get("h3_resolution", 9)
 
     print("=" * 60)
-    print(f"CityOS Safety Data Ingest Job — {city_cfg.get('name', 'Pune')}")
+    print(f"ResilientSteps Safety Data Ingest Job — {city_cfg.get('name', 'Pune')}")
     print("=" * 60)
 
     dataset_version = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -261,6 +261,7 @@ async def generate_safety_zones(dataset_version: str, engine):
     for lat, lon, score in rows:
         cell = h3.latlng_to_cell(lat, lon, h3_res)
         cell_counts[cell] = cell_counts.get(cell, 0) + 1
+        cell_scores[cell] = cell_scores.get(cell, 0.0) + float(score)
 
     zones_batch = []
     for cell, total_score in cell_scores.items():

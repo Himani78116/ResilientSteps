@@ -42,8 +42,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="CityOS API",
-    description="CityOS API — WalkSafe & Multi-Domain Civic Platform",
+    title="ResilientSteps API",
+    description="ResilientSteps API — Safety & Comfort-Aware Walking Navigation",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -78,7 +78,7 @@ class NgrokHeaderMiddleware(BaseHTTPMiddleware):
 app.add_middleware(NgrokHeaderMiddleware)
 
 # Register WalkSafe module router under /walksafe and at root for backward compatibility
-app.include_router(walksafe_router, prefix="/walksafe", tags=["WalkSafe"])
+app.include_router(walksafe_router, prefix="/walksafe", tags=["ResilientSteps"])
 app.include_router(walksafe_router)
 
 # Register Infrastructure module router under /infra
@@ -97,7 +97,7 @@ if static_dir.exists():
 
 @app.get("/")
 async def root():
-    return {"message": "WalkSafe API is running", "status": "online"}
+    return {"message": "ResilientSteps API is running", "status": "online"}
 
 
 @app.get("/city")

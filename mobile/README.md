@@ -1,4 +1,4 @@
-# WalkSafe Mobile
+# ResilientSteps Mobile
 
 Shared Flutter defines live in `config/dart_defines.json`.
 

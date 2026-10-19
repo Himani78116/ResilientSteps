@@ -75,21 +75,16 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                const SizedBox(height: 48),
-                const Icon(
-                  Icons.shield_outlined,
-                  size: 56,
-                  color: Colors.blue,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'WalkSafe',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+                const SizedBox(height: 32),
+                Center(
+                  child: Image.asset(
+                    'assets/logo_icon.png',
+                    width: 400,
+                    height: 400,
+                    fit: BoxFit.contain,
                   ),
                 ),
+                const SizedBox(height: 12),
                 const Text(
                   'Sign in to your account',
                   textAlign: TextAlign.center,

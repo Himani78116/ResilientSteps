@@ -1,5 +1,5 @@
 """
-CityOS Demo Data Seeder
+ResilientSteps Demo Data Seeder
 ========================
 Seeds the database with realistic mock data across all 3 report types
 (Safety, Infrastructure, Waste Management) for competition demos and testing.

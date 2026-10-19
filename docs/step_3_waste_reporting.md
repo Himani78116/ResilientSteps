@@ -150,7 +150,7 @@ Infrastructure.
 
 ### 6. Impact on Existing Systems
 
-**WalkSafe safety scoring**: No impact. The risk engine queries
+**ResilientSteps safety scoring**: No impact. The risk engine queries
 `incident_reports WHERE status='verified'` and uses category-based weights.
 Waste categories (overflowing_bin, etc.) don't match any existing weight
 category and default to `0.65`. If waste reports should NOT affect pedestrian
@@ -197,7 +197,7 @@ python -m pytest tests/ -v  # all tests
 2. `POST /waste/reports` with `category=overflowing_bin` → success
 3. `GET /admin/reports?status=pending&report_type=waste` → only waste reports
 4. Verify a waste report → appears in `GET /waste/reports/recent`
-5. Waste reports do NOT appear in `GET /reports/recent` (WalkSafe safety reports)
+5. Waste reports do NOT appear in `GET /reports/recent` (ResilientSteps safety reports)
 6. Safety routing scores are unaffected by waste reports
 
 ---

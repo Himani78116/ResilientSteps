@@ -38,7 +38,10 @@ def _normalize_database_url(url: str) -> str:
 
 
 database_url = _normalize_database_url(database_url)
-config.set_main_option("sqlalchemy.url", database_url)
+# ConfigParser interpolation treats % as special — escape it so passwords
+# containing % (e.g. URL-encoded %40 for @) don't crash set_main_option.
+# It is converted back to % when Alembic reads the value.
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline():

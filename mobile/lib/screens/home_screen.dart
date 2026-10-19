@@ -447,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         title: const Text('Sign in required'),
-        content: Text('$feature requires a WalkSafe account.\n\n$reason'),
+        content: Text('$feature requires a ResilientSteps account.\n\n$reason'),
         actions: <Widget>[
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),

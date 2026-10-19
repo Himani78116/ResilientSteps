@@ -1,5 +1,5 @@
 """
-Simple in-process rate limiter for CityOS API endpoints.
+Simple in-process rate limiter for ResilientSteps API endpoints.
 
 Uses a token-bucket algorithm keyed by client identifier (IP or user_hash).
 This is a single-process solution — for multi-instance deployments, replace

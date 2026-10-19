@@ -193,8 +193,8 @@ class _TrustedContactsScreenState extends State<TrustedContactsScreen> {
           children: <Widget>[
             Text(
               _contacts.isEmpty
-                  ? 'Add up to 3 trusted contacts. WalkSafe will send them device-local SOS text messages with your live location when you trigger an alert.'
-                  : 'You can update up to 3 trusted contacts here. WalkSafe uses these names and phone numbers for SOS text alerts and live updates.',
+                  ? 'Add up to 3 trusted contacts. ResilientSteps will send them device-local SOS text messages with your live location when you trigger an alert.'
+                  : 'You can update up to 3 trusted contacts here. ResilientSteps uses these names and phone numbers for SOS text alerts and live updates.',
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),

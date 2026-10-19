@@ -3,7 +3,6 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/app_config.dart';
-import 'screens/splash_screen.dart';
 import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
@@ -58,7 +57,7 @@ class WalkSafeApp extends StatelessWidget {
     );
 
     return MaterialApp(
-      title: 'WalkSafe',
+      title: 'ResilientSteps',
       debugShowCheckedModeBanner: false,
       theme: baseTheme.copyWith(
         scaffoldBackgroundColor: const Color(0xFFF4F7FB),
@@ -79,7 +78,7 @@ class WalkSafeApp extends StatelessWidget {
           contentTextStyle: TextStyle(color: Colors.white),
         ),
       ),
-      home: const SplashScreen(nextScreen: AuthGate()),
+      home: const AuthGate(),
     );
   }
 }

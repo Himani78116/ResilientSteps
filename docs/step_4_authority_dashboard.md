@@ -3,14 +3,14 @@
 ## Goal
 
 Build a web-based dashboard for municipal authorities that visualizes all
-CityOS data — safety reports, infrastructure issues, waste reports — on a
+ResilientSteps data — safety reports, infrastructure issues, waste reports — on a
 unified map with ward-level analytics, heatmaps, and report management
 capabilities. This is the first feature that serves the *authority* persona
 rather than citizens.
 
 ## Prerequisites
 
-- **Phases 1–3 complete**: WalkSafe, infrastructure, and waste modules exist.
+- **Phases 1–3 complete**: ResilientSteps, infrastructure, and waste modules exist.
 - `report_categories` table is populated for all three modules.
 - `incident_reports` has `report_type` and `severity` columns.
 - Admin moderation endpoints support `report_type` filtering.

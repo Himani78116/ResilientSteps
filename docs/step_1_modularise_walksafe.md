@@ -1,11 +1,11 @@
-# Phase 1 — Modularise WalkSafe
+# Phase 1 — Modularise ResilientSteps
 
 ## Goal
 
-Restructure the existing WalkSafe codebase so that safety routing becomes one
-self-contained module inside a broader CityOS platform. No new features are
-added — this phase is purely structural. After Phase 1, a second module (e.g.,
-infrastructure reporting) should be addable without touching any WalkSafe code.
+Restructure the existing ResilientSteps codebase so that safety routing becomes
+one self-contained module. No new features are added — this phase is purely
+structural. After Phase 1, a second module (e.g., infrastructure reporting)
+should be addable without touching any ResilientSteps walking code.
 
 ## Prerequisites
 
@@ -51,10 +51,10 @@ safety-specific but live in generic directories:
 
 ```
 mobile/lib/
-├── screens/          ← 11 screens, all WalkSafe-specific
-├── services/         ← 14 services, all WalkSafe-specific
-├── widgets/          ← 11 widgets, all WalkSafe-specific
-├── models/           ← 6 models, all WalkSafe-specific
+├── screens/          ← 11 screens, all ResilientSteps-specific
+├── services/         ← 14 services, all ResilientSteps-specific
+├── widgets/          ← 11 widgets, all ResilientSteps-specific
+├── models/           ← 6 models, all ResilientSteps-specific
 ├── controllers/      ← 1 controller (navigation)
 ├── config/           ← app_config.dart
 ├── domain/           ← empty subdirs (entities/, repositories/)
@@ -68,7 +68,7 @@ mobile/lib/
 
 ### 1. Backend — Create Module Directory Structure
 
-Create a `modules/` directory under `backend/app/` and move WalkSafe code into
+Create a `modules/` directory under `backend/app/` and move ResilientSteps code into
 a `walksafe/` submodule.
 
 **Target structure:**
@@ -87,7 +87,7 @@ backend/app/
 │   └── supabase_client.py              ← existing
 ├── modules/                             ← NEW: module registry
 │   ├── __init__.py                      ← module discovery/registration helper
-│   └── walksafe/                        ← NEW: WalkSafe module
+│   └── walksafe/                        ← NEW: ResilientSteps module
 │       ├── __init__.py                  ← exports router
 │       ├── routers/
 │       │   ├── __init__.py
@@ -119,7 +119,7 @@ app.include_router(reports.router)
 
 # Target:
 from app.modules.walksafe import router as walksafe_router
-app.include_router(walksafe_router, prefix="/walksafe", tags=["WalkSafe"])
+app.include_router(walksafe_router, prefix="/walksafe", tags=["ResilientSteps"])
 
 # Also keep root-level aliases for backward compatibility:
 app.include_router(walksafe_router)  # no prefix = same URLs as today
@@ -131,7 +131,7 @@ added later will have their own prefix (e.g., `/infra`, `/waste`).
 
 ### 3. Backend — Shared Core Extraction
 
-The following services are **not WalkSafe-specific** and should live in
+The following services are **not ResilientSteps-specific** and should live in
 `app/core/` so future modules can reuse them:
 
 | File | Current Location | New Location | Reason |
@@ -217,7 +217,7 @@ flutter analyze lib/
 ### Manual Verification
 
 1. Start the backend: `python -m uvicorn app.main:app --host 0.0.0.0 --port 8000`
-2. Confirm `/` returns `{"message": "WalkSafe API is running", "status": "online"}`
+2. Confirm `/` returns `{"message": "ResilientSteps API is running", "status": "online"}`
 3. Confirm `/route-safe?start_lat=18.52&start_lon=73.85&end_lat=18.53&end_lon=73.86` returns a route with safety scores (requires Valhalla running)
 4. Confirm `/safety-zones` returns a GeoJSON FeatureCollection
 5. Confirm `/admin/reports?status=pending` works with the correct `X-Admin-Key`
@@ -227,8 +227,8 @@ flutter analyze lib/
 ## Done Criteria
 
 - [ ] `backend/app/core/` exists with `auth_middleware.py`, `rate_limiter.py`, `database.py`
-- [ ] `backend/app/modules/walksafe/` exists with all WalkSafe routers, services, schemas
-- [ ] `backend/app/main.py` registers the WalkSafe module via `include_router`
+- [ ] `backend/app/modules/walksafe/` exists with all ResilientSteps routers, services, schemas
+- [ ] `backend/app/main.py` registers the ResilientSteps module via `include_router`
 - [ ] All existing API endpoints return identical responses to pre-refactor
 - [ ] All 8 existing test files pass without modification to test logic
 - [ ] `flutter analyze lib/` passes if mobile restructuring is included

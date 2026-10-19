@@ -79,11 +79,14 @@ class _SignupScreenState extends State<SignupScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                const SizedBox(height: 48),
-                const Icon(
-                  Icons.shield_outlined,
-                  size: 56,
-                  color: Colors.blue,
+                const SizedBox(height: 32),
+                Center(
+                  child: Image.asset(
+                    'assets/logo_icon.png',
+                    width: 400,
+                    height: 400,
+                    fit: BoxFit.contain,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 const Text(

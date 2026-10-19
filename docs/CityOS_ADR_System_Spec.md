@@ -1,10 +1,14 @@
-# CityOS Architecture Decision Record (ADR) + System Specification
+# ResilientSteps Architecture Decision Record (ADR) + System Specification
+
+> **Legacy document — superseded.** This records the original "CityOS" platform
+> vision. The current product is **ResilientSteps**, focused on safety- and
+> comfort-aware walking navigation. See `docs/README.md` for the live roadmap.
 
 Version: 0.1 (Foundational Blueprint)
 
 > This document captures architectural decisions, implementation
 > constraints, deployment philosophy, and module specifications for
-> CityOS.
+> ResilientSteps.
 
 ------------------------------------------------------------------------
 
@@ -12,13 +16,13 @@ Version: 0.1 (Foundational Blueprint)
 
 ## Mission
 
-CityOS is a civic operating platform that enables citizens to report
+ResilientSteps is a civic operating platform that enables citizens to report
 public infrastructure, sanitation, and safety issues while providing
 municipalities with actionable dashboards and map-based analytics.
 
 ## Product Philosophy
 
--   WalkSafe becomes one module inside CityOS.
+-   The walking navigator becomes one module inside the broader platform.
 -   Platform first, application second.
 -   Cloud-agnostic.
 -   Deployable locally for demos.
@@ -30,7 +34,7 @@ municipalities with actionable dashboards and map-based analytics.
 
 # 2. Core Modules
 
-1.  WalkSafe
+1.  ResilientSteps
 2.  Infrastructure Reporting
 3.  Waste Management
 4.  Civic Analytics
@@ -215,7 +219,7 @@ One command should:
 
 # 12. Implementation Roadmap
 
-Phase 1 - Refactor WalkSafe into module
+Phase 1 - Refactor ResilientSteps into module
 
 Phase 2 - Infrastructure reporting
 

@@ -9,7 +9,7 @@ PROFILE=${1:-local}
 export CITYOS_PROFILE=$PROFILE
 
 echo "=========================================="
-echo " Starting CityOS with profile: $PROFILE"
+echo " Starting ResilientSteps with profile: $PROFILE"
 echo "=========================================="
 
 if [ "$PROFILE" = "demo" ]; then
@@ -20,7 +20,7 @@ fi
 docker compose up -d
 
 echo ""
-echo "CityOS services are online!"
+echo "ResilientSteps services are online!"
 echo "Backend API:      http://localhost:8000"
 echo "Authority Web UI: http://localhost:8000/dashboard-ui/"
 echo "Valhalla Routing: http://localhost:8002"

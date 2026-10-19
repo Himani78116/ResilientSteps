@@ -1,17 +1,14 @@
 <div align="center">
 
 ```
-██╗    ██╗ █████╗ ██╗     ██╗  ██╗███████╗ █████╗ ███████╗███████╗
-██║    ██║██╔══██╗██║     ██║ ██╔╝██╔════╝██╔══██╗██╔════╝██╔════╝
-██║ █╗ ██║███████║██║     █████╔╝ ███████╗███████║█████╗  █████╗
-██║███╗██║██╔══██║██║     ██╔═██╗ ╚════██║██╔══██║██╔══╝  ██╔══╝
-╚███╔███╔╝██║  ██║███████╗██║  ██╗███████║██║  ██║██║     ███████╗
- ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚══════╝
+╔═══════════════════════════════════════════════════════════════════╗
+║                     R E S I L I E N T S T E P S                    ║
+╚═══════════════════════════════════════════════════════════════════╝
 ```
 
-**The safer way to walk.**
+**The safer, cooler way to walk.**
 
-*Pedestrian safety navigation for Pune — routes that prioritise your safety over speed.*
+*Pedestrian safety & comfort navigation for Pune — routes that prioritise your safety and shade over speed.*
 
 ---
 
@@ -25,9 +22,9 @@
 
 ---
 
-## What is WalkSafe?
+## What is ResilientSteps?
 
-Most navigation apps optimise for speed. WalkSafe optimises for **safety**.
+Most navigation apps optimise for speed. ResilientSteps optimises for **safety**.
 
 Instead of asking "how do I get there fastest?" it asks "how do I get there most safely?" — routing pedestrians through well-lit streets, footpaths, and residential roads while avoiding high-speed arterials, poorly-lit stretches, and areas with recent incident reports.
 
@@ -42,7 +39,7 @@ Your location
       │
       ▼
  ┌─────────────────────────────────────────────────────┐
- │                   WalkSafe Backend                  │
+ │                   ResilientSteps Backend                  │
  │                                                     │
  │  ┌──────────┐    ┌───────────┐    ┌──────────────┐  │
  │  │ Valhalla │───▶│   Risk    │───▶│  Safe Route │  │
@@ -125,7 +122,7 @@ Simple API-based moderation workflow. Verified reports automatically apply a saf
 ## Repository layout
 
 ```
-walksafe/
+ResilientSteps/
 ├── backend/                    FastAPI server
 │   ├── app/
 │   │   ├── routers/
@@ -178,7 +175,7 @@ walksafe/
 
 ## Prerequisites
 
-Before running WalkSafe locally you need:
+Before running ResilientSteps locally you need:
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install) (stable channel)
 - [Python 3.11+](https://www.python.org/downloads/)
@@ -194,8 +191,8 @@ Before running WalkSafe locally you need:
 ### 1 — Clone and configure
 
 ```bash
-git clone https://github.com/your-username/walksafe.git
-cd walksafe
+git clone https://github.com/your-username/ResilientSteps.git
+cd ResilientSteps
 ```
 
 Copy the environment template and fill in your values:
@@ -321,7 +318,7 @@ flutter run -d <device-id> \
 
 ## Building a shareable demo APK
 
-WalkSafe uses ngrok to expose the local backend over a permanent HTTPS URL so the APK
+ResilientSteps uses ngrok to expose the local backend over a permanent HTTPS URL so the APK
 works anywhere — not just on your local network.
 
 ### Set up ngrok
@@ -543,7 +540,7 @@ Final score is clamped to [0, 100].
 
 ## Contributing
 
-WalkSafe is a private project in active development. If you have been given access to
+ResilientSteps is a private project in active development. If you have been given access to
 this repository:
 
 1. Do not push directly to `main`
@@ -556,7 +553,7 @@ this repository:
 
 ## Acknowledgements
 
-WalkSafe is built on the shoulders of genuinely excellent open-source work:
+ResilientSteps is built on the shoulders of genuinely excellent open-source work:
 
 - **[OpenStreetMap](https://www.openstreetmap.org)** — the street data that makes
   safety scoring possible

@@ -20,6 +20,21 @@ Map<String, dynamic>? tryParseJsonMap(String body) {
   }
 }
 
+/// Attempts to parse a JSON string as a [List<dynamic>].
+/// Returns null on parse failure or non-list results.
+List<dynamic>? tryParseJsonList(String body) {
+  try {
+    final dynamic decoded = jsonDecode(body);
+    if (decoded is List) {
+      return decoded;
+    }
+    return null;
+  } catch (e) {
+    debugPrint('api_utils: JSON list parse failed: $e');
+    return null;
+  }
+}
+
 /// Coerces an [Object?] to a [Map<String, dynamic>] if possible.
 /// Handles both typed and untyped maps. Returns null for non-map values.
 Map<String, dynamic>? coerceMap(Object? value) {

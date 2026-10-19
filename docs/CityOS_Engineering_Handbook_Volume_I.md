@@ -1,4 +1,8 @@
-# CityOS Engineering Handbook
+# ResilientSteps Engineering Handbook
+
+> **Legacy document — superseded.** This is the original "CityOS" platform
+> handbook. The current product is **ResilientSteps**, focused on safety- and
+> comfort-aware walking navigation. See `docs/README.md` for the live roadmap.
 
 # Volume I --- Vision, Product & Functional Specification
 
@@ -28,13 +32,13 @@
 
 # 1. Executive Summary
 
-CityOS is a civic operating platform that enables citizens to report
+ResilientSteps is a civic operating platform that enables citizens to report
 infrastructure, waste management and public safety issues while giving
 municipal authorities real-time visibility and scheduled city-wide
 analytics.
 
-WalkSafe becomes the first module of CityOS instead of the entire
-product.
+The walking navigator becomes the first module of the broader platform instead
+of the entire product.
 
 The platform is designed to be:
 
@@ -57,7 +61,7 @@ geospatial intelligence.
 
 ## Long-term Goal
 
-Instead of replacing existing municipal software, CityOS becomes an
+Instead of replacing existing municipal software, ResilientSteps becomes an
 operational layer capable of ingesting citizen reports and transforming
 them into actionable city-wide insights.
 
@@ -84,7 +88,7 @@ for planning.
 
 # 4. Product Philosophy
 
-CityOS follows several guiding principles.
+ResilientSteps follows several guiding principles.
 
 ## Configuration over Code
 
@@ -107,7 +111,7 @@ without code changes.
 
 ## Platform First
 
-WalkSafe is a module.
+ResilientSteps is a module.
 
 Infrastructure reporting is a module.
 
@@ -177,7 +181,7 @@ Launches a complete demo environment from seeded data.
 
 # 8. Product Modules
 
-## WalkSafe
+## ResilientSteps
 
 Safety-first pedestrian routing.
 
@@ -270,7 +274,7 @@ Citizen → Capture photo → Choose category → Choose severity → Submit
 
 Authority → Verify → Scheduled aggregation → Heatmap update
 
-## WalkSafe
+## ResilientSteps
 
 Origin → Destination → Safe route → Navigation → Arrival
 
@@ -323,7 +327,7 @@ Hackathon Metrics
 
 Phase 1
 
-WalkSafe modularisation
+ResilientSteps modularisation
 
 Phase 2
 
@@ -361,4 +365,4 @@ API contracts, frontend implementation, deployment pipelines, testing
 strategy, and operations in implementation-level detail.
 
 This handbook is intended to become the authoritative specification for
-CityOS.
+ResilientSteps.
