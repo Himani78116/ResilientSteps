@@ -511,17 +511,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final NavigationState navState = _navController.navState;
-    final bool showBottomCard =
-        _isLoadingRoute ||
-        navState == NavigationState.planning ||
-        navState == NavigationState.active ||
-        navState == NavigationState.arrived;
+    // The idle bottom sheet is always visible (~250px tall).
+    // The planning/loading card is the route-comparison sheet (~400px).
+    // The active collapsed strip (with metric cards) is taller (~300px).
     final double actionBottomOffset =
         navState == NavigationState.active && !_isNavigationCardExpanded
-        ? 104
-        : showBottomCard
-        ? 288
-        : 28;
+        ? 300
+        : navState == NavigationState.planning || _isLoadingRoute
+        ? 400
+        : navState == NavigationState.arrived
+        ? 220
+        : 250;
 
     return Scaffold(
       body: HomeScreenBody(

@@ -130,7 +130,10 @@ def load_city_config() -> dict:
     }
 
 
-async def run_ingest():
+async def run_ingest(
+    dataset_version: str | None = None,
+    reuse_existing_roads: bool = False,
+):
     city_cfg = load_city_config()
     city_name = city_cfg.get("name", "pune").lower().replace(" ", "_")
     osmnx_place = city_cfg.get("osmnx_place", "Pune, Maharashtra, India")
@@ -140,17 +143,57 @@ async def run_ingest():
     print(f"ResilientSteps Safety Data Ingest Job — {city_cfg.get('name', 'Pune')}")
     print("=" * 60)
 
-    dataset_version = datetime.now().strftime("%Y%m%d-%H%M%S")
+    engine = create_async_engine(DATABASE_URL, echo=False)
+    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    if reuse_existing_roads:
+        if not dataset_version:
+            async with Session() as session:
+                res = await session.execute(
+                    text(
+                        "SELECT dataset_version FROM road_segments ORDER BY updated_at DESC LIMIT 1"
+                    )
+                )
+                row = res.fetchone()
+                if not row:
+                    print("No road segments found in database to generate zones from.")
+                    await engine.dispose()
+                    return
+                dataset_version = row[0]
+
+        async with Session() as session:
+            res = await session.execute(
+                text("SELECT count(*) FROM road_segments WHERE dataset_version = :v"),
+                {"v": dataset_version},
+            )
+            count = res.scalar() or 0
+        print(
+            f"Reusing {count} existing road segments for dataset version: {dataset_version}"
+        )
+        start = time.time()
+        print("Generating safety zone polygons...")
+        await generate_safety_zones(dataset_version, engine)
+        elapsed = time.time() - start
+        print(f"Done. Dataset version: {dataset_version} | Time: {elapsed:.1f}s")
+        await engine.dispose()
+        return
+
+    if not dataset_version:
+        dataset_version = datetime.now().strftime("%Y%m%d-%H%M%S")
     print(f"Dataset version: {dataset_version}")
 
-    cache_path = os.path.join(os.path.dirname(__file__), "outputs", f"{city_name}_walk.graphml")
+    cache_path = os.path.join(
+        os.path.dirname(__file__), "outputs", f"{city_name}_walk.graphml"
+    )
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
 
     if os.path.exists(cache_path):
         print(f"Loading cached street graph ({city_name}_walk.graphml)...")
         graph = ox.load_graphml(cache_path)
     else:
-        print(f"Downloading {city_cfg.get('name', 'Pune')} street graph from OpenStreetMap ('{osmnx_place}')...")
+        print(
+            f"Downloading {city_cfg.get('name', 'Pune')} street graph from OpenStreetMap ('{osmnx_place}')..."
+        )
         print("This may take 5-10 minutes on first run...")
         graph = ox.graph_from_place(osmnx_place, network_type="walk")
         ox.save_graphml(graph, cache_path)
@@ -158,9 +201,6 @@ async def run_ingest():
     edges = ox.graph_to_gdfs(graph, nodes=False)
     total = len(edges)
     print(f"Scoring {total} street segments...")
-
-    engine = create_async_engine(DATABASE_URL, echo=False)
-    Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     batch = []
     written = 0
@@ -185,16 +225,16 @@ async def run_ingest():
                 }
             )
 
-            if len(batch) >= 500:
+            if len(batch) >= 2000:
                 await _write_batch(session, batch)
+                await session.commit()
                 written += len(batch)
                 batch = []
 
         if batch:
             await _write_batch(session, batch)
+            await session.commit()
             written += len(batch)
-
-        await session.commit()
 
     print(f"Written {written} segments to database.")
 
@@ -260,6 +300,7 @@ async def generate_safety_zones(dataset_version: str, engine):
     h3_res = load_city_config().get("h3_resolution", 9)
     for lat, lon, score in rows:
         cell = h3.latlng_to_cell(lat, lon, h3_res)
+        cell_scores[cell] = cell_scores.get(cell, 0) + score
         cell_counts[cell] = cell_counts.get(cell, 0) + 1
         cell_scores[cell] = cell_scores.get(cell, 0.0) + float(score)
 
@@ -297,7 +338,9 @@ async def generate_safety_zones(dataset_version: str, engine):
         )
 
     async with Session() as session:
-        if zones_batch:
+        batch_size = 500
+        for i in range(0, len(zones_batch), batch_size):
+            chunk = zones_batch[i : i + batch_size]
             await session.execute(
                 text(
                     """
@@ -313,10 +356,11 @@ async def generate_safety_zones(dataset_version: str, engine):
                         geometry = EXCLUDED.geometry,
                         risk_level = EXCLUDED.risk_level,
                         risk_score = EXCLUDED.risk_score,
-                        dataset_version = EXCLUDED.dataset_version
+                        dataset_version = EXCLUDED.dataset_version,
+                        created_at = NOW()
                     """
                 ),
-                zones_batch,
+                chunk,
             )
 
         await session.commit()
@@ -326,4 +370,26 @@ async def generate_safety_zones(dataset_version: str, engine):
 
 
 if __name__ == "__main__":
-    asyncio.run(run_ingest())
+    import argparse
+
+    parser = argparse.ArgumentParser(description="WalkSafe Safety Data Ingest Job")
+    parser.add_argument(
+        "--zones-only",
+        "--reuse-roads",
+        action="store_true",
+        dest="reuse_roads",
+        help="Skip road segment scoring and regenerate safety zones from existing road segments.",
+    )
+    parser.add_argument(
+        "--dataset-version",
+        type=str,
+        default=None,
+        help="Specify an existing dataset version to generate zones for.",
+    )
+    args = parser.parse_args()
+    asyncio.run(
+        run_ingest(
+            dataset_version=args.dataset_version,
+            reuse_existing_roads=args.reuse_roads,
+        )
+    )

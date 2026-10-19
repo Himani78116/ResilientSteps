@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/route_segment_safety.dart';
 import '../models/scored_route.dart';
-import 'gradient_button.dart';
 
 class RouteInfoCard extends StatelessWidget {
   const RouteInfoCard({
@@ -26,44 +25,54 @@ class RouteInfoCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final BorderRadius borderRadius = BorderRadius.circular(32);
     final ThemeData theme = Theme.of(context);
+
+    // Loading state uses a compact card; ready state uses the bottom-sheet style
+    if (isLoading) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.10),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            child: _LoadingState(theme: theme),
+          ),
+        ),
+      );
+    }
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 560),
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          borderRadius: borderRadius,
-          border: Border.all(color: const Color(0xFFF0F4FA)),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           boxShadow: <BoxShadow>[
             BoxShadow(
-              color: const Color(0xFF12366E).withValues(alpha: 0.10),
-              blurRadius: 36,
-              offset: const Offset(0, 18),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+              color: Color(0x1A000000),
+              blurRadius: 32,
+              offset: Offset(0, -8),
             ),
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: isLoading
-                ? _LoadingState(theme: theme)
-                : _ReadyState(
-                    route: route!,
-                    destinationLabel: destinationLabel,
-                    buttonLabel: buttonLabel,
-                    onPrimaryPressed: onPrimaryPressed,
-                    theme: theme,
-                  ),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+          child: _ReadyState(
+            route: route!,
+            destinationLabel: destinationLabel,
+            buttonLabel: buttonLabel,
+            onPrimaryPressed: onPrimaryPressed,
+            theme: theme,
           ),
         ),
       ),
@@ -145,91 +154,194 @@ class _ReadyState extends StatelessWidget {
     final int safetyScore = route.averageSafetyScore.round().clamp(0, 100);
     final _RouteCardSummary summary = _RouteCardSummary.fromRoute(route);
 
+    // Shade derived from average lighting level (0–1 → %)
+    final double avgShade = route.segments.isEmpty
+        ? 0
+        : route.segments
+                .map((s) => s.lightingLevel)
+                .reduce((a, b) => a + b) /
+            route.segments.length;
+    final int shadePct = (avgShade * 100).round().clamp(0, 100);
+
+    final double distKm = route.totalDistanceMeters / 1000;
+    final String distLabel = distKm >= 1
+        ? '${distKm.toStringAsFixed(1)} km'
+        : '${route.totalDistanceMeters.round()} m';
+
+    const Color deepGreen = Color(0xFF1B6B3A);
+
     return Column(
       key: const ValueKey<String>('ready'),
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (destinationLabel != null &&
-            destinationLabel!.trim().isNotEmpty) ...<Widget>[
-          Text(
-            destinationLabel!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFF66768D),
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.1,
+        // Drag handle
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD0D8E4),
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(height: 16),
-        ],
+        ),
+        const SizedBox(height: 16),
+        // Heading row: "Climate-Smart Route" + recommended badge
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'Climate-Smart Route',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      color: const Color(0xFF0E1B2A),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${summary.etaMinutes} min  •  $distLabel',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF5E6D80),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDCF5E8),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Recommended\nfor today\'s heat',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: deepGreen,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        // Why this route? explanation
+        RichText(
+          text: TextSpan(
+            children: <TextSpan>[
+              TextSpan(
+                text: 'Why this route? ',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: deepGreen,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextSpan(
+                text: route.warning ?? summary.advice,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF3D4F62),
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Safety & Shade scores
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F8FC),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: <Widget>[
+              const Icon(
+                Icons.wb_sunny_outlined,
+                size: 18,
+                color: Color(0xFF8A9BB0),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Safety: $safetyScore%',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF3D4F62),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Text(
+                'Shade: $shadePct%',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF3D4F62),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Route selector chips
         Row(
           children: <Widget>[
-            Expanded(
-              child: _MetricBlock(
-                label: 'ROUTE SAFETY SCORE',
-                value: '$safetyScore%',
-              ),
+            _RouteOptionChip(
+              label: 'Climate-Smart',
+              selected: true,
+              onTap: () {},
             ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: _MetricBlock(
-                label: 'EST. TIME',
-                value: '${summary.etaMinutes} MIN',
-                alignEnd: true,
-              ),
+            const SizedBox(width: 10),
+            _RouteOptionChip(
+              label: 'Fastest',
+              selected: false,
+              onTap: () {},
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: <Widget>[
-            _SummaryChip(
-              icon: Icons.route_rounded,
-              label: summary.headline,
-              backgroundColor: summary.highlightColor.withValues(alpha: 0.12),
-              foregroundColor: summary.highlightColor,
+        const SizedBox(height: 18),
+        // Start Walking button
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: <Color>[Color(0xFF1B6B3A), Color(0xFF2E8B50)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(27),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFF1B6B3A).withValues(alpha: 0.30),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
-            _SummaryChip(
-              icon: Icons.warning_amber_rounded,
-              label: 'Watch-outs: ${summary.watchOutLabel}',
-              backgroundColor: const Color(0xFFF8F1E3),
-              foregroundColor: const Color(0xFFB97C11),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: onPrimaryPressed,
+                borderRadius: BorderRadius.circular(27),
+                splashColor: Colors.white.withValues(alpha: 0.12),
+                child: Center(
+                  child: Text(
+                    'Start Walking →',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ),
             ),
-            _SummaryChip(
-              icon: Icons.local_fire_department_rounded,
-              label: summary.incidentLabel,
-              backgroundColor: const Color(0xFFFCEBE7),
-              foregroundColor: const Color(0xFFC75B48),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Text(
-          route.warning ?? summary.advice,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: route.warning == null
-                ? const Color(0xFF5E6D80)
-                : const Color(0xFF8B5A14),
-            height: 1.35,
-            fontWeight: route.warning == null
-                ? FontWeight.w500
-                : FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 22),
-        GradientButton(
-          label: buttonLabel,
-          onPressed: onPrimaryPressed,
-          height: 62,
-          borderRadius: 24,
-          textStyle: theme.textTheme.titleMedium?.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.3,
           ),
         ),
       ],
@@ -237,91 +349,58 @@ class _ReadyState extends StatelessWidget {
   }
 }
 
-class _SummaryChip extends StatelessWidget {
-  const _SummaryChip({
-    required this.icon,
+
+class _RouteOptionChip extends StatelessWidget {
+  const _RouteOptionChip({
     required this.label,
-    required this.backgroundColor,
-    required this.foregroundColor,
+    required this.selected,
+    required this.onTap,
   });
 
-  final IconData icon;
   final String label;
-  final Color backgroundColor;
-  final Color foregroundColor;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF0E1B2A)
+                : const Color(0xFFD0D8E4),
+            width: selected ? 1.5 : 1.0,
+          ),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Icon(icon, size: 16, color: foregroundColor),
-            const SizedBox(width: 8),
+            if (selected) ...<Widget>[
+              const Icon(
+                Icons.check_rounded,
+                size: 14,
+                color: Color(0xFF0E1B2A),
+              ),
+              const SizedBox(width: 4),
+            ],
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: foregroundColor,
-                fontWeight: FontWeight.w700,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: selected
+                    ? const Color(0xFF0E1B2A)
+                    : const Color(0xFF8A9BB0),
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _MetricBlock extends StatelessWidget {
-  const _MetricBlock({
-    required this.label,
-    required this.value,
-    this.alignEnd = false,
-  });
-
-  final String label;
-  final String value;
-  final bool alignEnd;
-
-  @override
-  Widget build(BuildContext context) {
-    final CrossAxisAlignment alignment = alignEnd
-        ? CrossAxisAlignment.end
-        : CrossAxisAlignment.start;
-
-    return Column(
-      crossAxisAlignment: alignment,
-      children: <Widget>[
-        Text(
-          label,
-          textAlign: alignEnd ? TextAlign.end : TextAlign.start,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: const Color(0xFF617286),
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4,
-          ),
-        ),
-        const SizedBox(height: 10),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
-          child: Text(
-            value,
-            textAlign: alignEnd ? TextAlign.end : TextAlign.start,
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-              color: const Color(0xFF0C1522),
-              fontWeight: FontWeight.w900,
-              height: 0.96,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

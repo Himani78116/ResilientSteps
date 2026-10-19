@@ -60,3 +60,15 @@ double? asDouble(Object? value) {
   }
   return null;
 }
+/// Attempts to parse a JSON string as a [List<dynamic>].
+/// Returns null on parse failure or non-list results.
+List<dynamic>? tryParseJsonList(String body) {
+  try {
+    final dynamic decoded = jsonDecode(body);
+    return decoded is List ? decoded : null;
+  } catch (e) {
+    debugPrint('api_utils: JSON list parse failed: $e');
+    return null;
+  }
+}
+
