@@ -137,7 +137,6 @@ class NavigationController extends ChangeNotifier {
   void Function(double heading)? onHeadingChanged;
 
   void beginTracking() {
-    _startCompassTracking();
     _startPositionTracking();
   }
 
@@ -315,6 +314,7 @@ class NavigationController extends ChangeNotifier {
     _navState = NavigationState.active;
     if (oldState != _navState) {
       _updatePositionTrackingSettings();
+      _startCompassTracking();
     }
     _headingUpMode = hasHeading;
     _offRouteSampleCount = 0;
@@ -341,6 +341,8 @@ class NavigationController extends ChangeNotifier {
     if (oldState != _navState) {
       _updatePositionTrackingSettings();
     }
+    _compassSubscription?.cancel();
+    _compassSubscription = null;
     _destinationLatLng = null;
     _selectedRoute = null;
     _currentRoute = null;
