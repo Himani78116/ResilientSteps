@@ -16,6 +16,11 @@ from app.modules.walksafe.schemas.reports import (
 INCIDENT_MATCH_DISTANCE_METERS = 30.0
 INCIDENT_SEARCH_EXPAND_DEGREES = 0.0005
 
+SHADE_OBSERVATION_PENALTY = 10.0
+MAX_SHADE_OBSERVATION_PENALTY = 25.0
+COOL_SPOT_BONUS = 5.0
+MAX_COOL_SPOT_BONUS = 10.0
+
 
 class ReportingService:
     def __init__(self) -> None:
@@ -214,6 +219,14 @@ class ReportingService:
                             WHEN 'Suspicious Activity' THEN 0.8
                             WHEN 'Unsafe infrastructure' THEN 0.7
                             WHEN 'Poor lighting' THEN 0.6
+                            WHEN 'no_shade' THEN 0.0
+                            WHEN 'No shade / heavy sun' THEN 0.0
+                            WHEN 'shade_obstruction' THEN 0.0
+                            WHEN 'Shade blocked (overgrown / construction)' THEN 0.0
+                            WHEN 'heat_stress' THEN 0.0
+                            WHEN 'Heat stress / too hot to walk' THEN 0.0
+                            WHEN 'cool_spot' THEN 0.0
+                            WHEN 'Cool shaded spot / water available' THEN 0.0
                             ELSE 0.65
                         END
                     )::numeric,
@@ -254,6 +267,108 @@ class ReportingService:
             }
 
         return aggregates
+
+    async def get_segment_shade_corrections(
+        self,
+        *,
+        road_segment_ids: List[int],
+        dataset_version: str | None,
+        db: AsyncSession,
+    ) -> Dict[int, float]:
+        if not road_segment_ids or not dataset_version:
+            return {}
+
+        query = text(
+            """
+            WITH route_segments AS (
+                SELECT id, geometry
+                FROM road_segments
+                WHERE dataset_version = :dataset_version
+                AND id IN :road_segment_ids
+            ),
+            route_bounds AS (
+                SELECT ST_Envelope(ST_Collect(geometry)) AS route_bbox
+                FROM route_segments
+            ),
+            matched_observations AS (
+                SELECT
+                    nearest.road_segment_id,
+                    report.category,
+                    COALESCE(report.status, 'pending') AS status
+                FROM incident_reports report
+                CROSS JOIN route_bounds bounds
+                JOIN LATERAL (
+                    SELECT
+                        rs.id AS road_segment_id,
+                        ST_Distance(rs.geometry::geography, report.location) AS distance_m
+                    FROM route_segments rs
+                    WHERE rs.geometry && ST_Expand(
+                        report.location::geometry,
+                        :incident_search_expand_degrees
+                    )
+                    ORDER BY rs.geometry <-> report.location::geometry
+                    LIMIT 1
+                ) AS nearest ON TRUE
+                WHERE bounds.route_bbox IS NOT NULL
+                AND report.location::geometry && ST_Expand(
+                    bounds.route_bbox,
+                    :incident_search_expand_degrees
+                )
+                AND nearest.distance_m <= :incident_match_distance_m
+                AND LOWER(COALESCE(report.status, 'pending')) = 'verified'
+                AND COALESCE(report.report_type, 'safety') = 'safety'
+                AND LOWER(report.category) IN (
+                    'no_shade',
+                    'no shade / heavy sun',
+                    'shade_obstruction',
+                    'shade blocked (overgrown / construction)',
+                    'cool_spot',
+                    'cool shaded spot / water available'
+                )
+            )
+            SELECT
+                road_segment_id,
+                SUM(
+                    CASE
+                        WHEN LOWER(category) IN (
+                            'no_shade',
+                            'no shade / heavy sun',
+                            'shade_obstruction',
+                            'shade blocked (overgrown / construction)'
+                        ) THEN :shade_observation_penalty
+                        WHEN LOWER(category) IN (
+                            'cool_spot',
+                            'cool shaded spot / water available'
+                        ) THEN :cool_spot_bonus
+                        ELSE 0.0
+                    END
+                )::numeric AS shade_correction
+            FROM matched_observations
+            GROUP BY road_segment_id
+            """
+        ).bindparams(bindparam("road_segment_ids", expanding=True))
+
+        result = await db.execute(
+            query,
+            {
+                "dataset_version": dataset_version,
+                "road_segment_ids": [int(segment_id) for segment_id in road_segment_ids],
+                "incident_match_distance_m": INCIDENT_MATCH_DISTANCE_METERS,
+                "incident_search_expand_degrees": INCIDENT_SEARCH_EXPAND_DEGREES,
+                "shade_observation_penalty": -SHADE_OBSERVATION_PENALTY,
+                "cool_spot_bonus": COOL_SPOT_BONUS,
+            },
+        )
+
+        corrections: Dict[int, float] = {}
+        for row in result.fetchall():
+            mapping = row._mapping
+            correction = float(mapping["shade_correction"] or 0.0)
+            corrections[int(mapping["road_segment_id"])] = max(
+                -MAX_SHADE_OBSERVATION_PENALTY,
+                min(MAX_COOL_SPOT_BONUS, correction),
+            )
+        return corrections
 
     async def create_emergency_alert(
         self,

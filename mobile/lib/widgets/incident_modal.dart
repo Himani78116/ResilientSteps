@@ -88,6 +88,22 @@ class _IncidentModalState extends State<IncidentModal> {
       label: 'Unsafe infrastructure',
       value: 'Unsafe infrastructure',
     ),
+    _IncidentCategory(
+      label: 'No shade / heavy sun',
+      value: 'No shade / heavy sun',
+    ),
+    _IncidentCategory(
+      label: 'Shade blocked',
+      value: 'Shade blocked (overgrown / construction)',
+    ),
+    _IncidentCategory(
+      label: 'Heat stress',
+      value: 'Heat stress / too hot to walk',
+    ),
+    _IncidentCategory(
+      label: 'Cool shaded spot',
+      value: 'Cool shaded spot / water available',
+    ),
   ];
 
   final ReportingApiService _reportingApiService = ReportingApiService();
@@ -588,7 +604,6 @@ class _IncidentModalState extends State<IncidentModal> {
       ),
     );
   }
-
 }
 
 class _CategoryPill extends StatelessWidget {

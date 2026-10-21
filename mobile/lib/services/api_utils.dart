@@ -60,3 +60,4 @@ double? asDouble(Object? value) {
   }
   return null;
 }
+

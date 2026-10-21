@@ -29,4 +29,4 @@ cache:
 
 cors:
   origins:
-    - "*"
+    - "*"  # dev profile: flutter run picks a random web port; narrow per-env in prod profiles only

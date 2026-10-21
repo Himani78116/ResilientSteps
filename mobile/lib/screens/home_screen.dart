@@ -64,6 +64,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<NearbyPlace> _nearbyPlaces = <NearbyPlace>[];
   bool _isLoadingNearbyPlaces = false;
 
+  // Origin confirmation (Google-Maps style): the live fix is reverse-geocoded
+  // into a place name and the user confirms it, or types the real start.
+  PlaceSuggestion? _explicitOrigin;
+  String? _suggestedOriginLabel;
+  bool _originLabelLoading = false;
+  bool _originConfirmed = false;
+
   LatLng get _liveUserPoint =>
       _navController.liveUserPoint ?? _lastKnownUserPoint;
 
@@ -214,6 +221,73 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     _mapController.move(result.center, 15.2);
+    unawaited(_resolveOriginLabel(result.center));
+  }
+
+  Future<void> _resolveOriginLabel(LatLng point) async {
+    setState(() {
+      _originLabelLoading = true;
+      _suggestedOriginLabel = null;
+    });
+
+    PlaceSuggestion? suggestion;
+    try {
+      suggestion = await _placeSearchService.reverseGeocode(
+        point.latitude,
+        point.longitude,
+      );
+    } catch (_) {
+      suggestion = null;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _originLabelLoading = false;
+      _suggestedOriginLabel = suggestion?.title;
+    });
+  }
+
+  /// Start point used for route planning: a user-typed origin beats the live
+  /// GPS fix. Active navigation/rerouting always stays on the live point.
+  LatLng get _planningStart => _explicitOrigin?.point ?? _liveUserPoint;
+
+  Future<void> _confirmOrigin() async {
+    setState(() {
+      _originConfirmed = true;
+      _explicitOrigin = null;
+    });
+  }
+
+  Future<void> _changeOrigin() async {
+    final PlaceSuggestion? origin = await Navigator.of(context)
+        .push<PlaceSuggestion>(
+          MaterialPageRoute<PlaceSuggestion>(
+            builder: (_) => DestinationSearchScreen(
+              placeSearchService: _placeSearchService,
+              pickSource: true,
+            ),
+          ),
+        );
+
+    if (!mounted || origin == null) {
+      return;
+    }
+
+    setState(() {
+      _explicitOrigin = origin;
+      _originConfirmed = true;
+    });
+
+    final LatLng? destination = _navController.destinationLatLng;
+    if (destination != null) {
+      // Destination already chosen (e.g. route still pending retry) — reload
+      // the route from the newly typed origin.
+      await _setDestination(destination.latitude, destination.longitude, _destinationLabel ?? 'Pinned destination');
+    } else {
+      await _openDestinationSearch(initialQuery: null);
+    }
   }
 
   Future<void> _loadRoute({
@@ -300,13 +374,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _openDestinationSearch() async {
+  Future<void> _openDestinationSearch({String? initialQuery}) async {
     final PlaceSuggestion? suggestion = await Navigator.of(context)
         .push<PlaceSuggestion>(
           MaterialPageRoute<PlaceSuggestion>(
             builder: (_) => DestinationSearchScreen(
               placeSearchService: _placeSearchService,
-              initialQuery: _destinationLabel,
+              initialQuery: initialQuery,
             ),
           ),
         );
@@ -508,7 +582,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _setDestination(double lat, double lon, String name) async {
     await _loadRoute(
-      start: _liveUserPoint,
+      start: _planningStart,
       destination: LatLng(lat, lon),
       label: name,
     );
@@ -587,17 +661,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final NavigationState navState = _navController.navState;
-    final bool showBottomCard =
-        _isLoadingRoute ||
-        navState == NavigationState.planning ||
-        navState == NavigationState.active ||
-        navState == NavigationState.arrived;
+    // The idle bottom sheet is now compact: just the search field (~76px),
+    // or ~136px tall when a failed destination stays in the sheet.
+    // The planning/loading card is the route-comparison sheet (~400px).
+    // The active collapsed strip (with metric cards) is taller (~300px).
+    // While the origin banner is unanswered it adds ~70px to the idle sheet.
+    final bool originNeedsConfirm =
+        _originLabelLoading ||
+        (_explicitOrigin == null && !_originConfirmed);
+    final double idleBottomOffset = originNeedsConfirm ? 210 : 140;
     final double actionBottomOffset =
         navState == NavigationState.active && !_isNavigationCardExpanded
-        ? 104
-        : showBottomCard
-        ? 288
-        : 28;
+        ? 300
+        : navState == NavigationState.planning || _isLoadingRoute
+        ? 400
+        : navState == NavigationState.arrived
+        ? 220
+        : _destinationLabel != null
+        ? 220
+        : idleBottomOffset;
 
     return Scaffold(
       body: HomeScreenBody(
@@ -656,7 +738,9 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         },
         onRecenter: _recenterOnUser,
-        onSearchTap: _openDestinationSearch,
+        onSearchTap: () {
+          unawaited(_openDestinationSearch(initialQuery: _destinationLabel));
+        },
         onNearbyCategory: _loadNearbyPlaces,
         onClearRoute: _destinationLabel == null || _isLoadingRoute
             ? null
@@ -672,6 +756,15 @@ class _HomeScreenState extends State<HomeScreen> {
         onStartNavigation: _handleStartNavigation,
         onStopNavigation: _handleStopNavigation,
         onDismissArrival: _handleStopNavigation,
+        originLabel: _explicitOrigin?.title ?? _suggestedOriginLabel,
+        originLoading: _originLabelLoading,
+        originNeedsConfirm: _explicitOrigin == null && !_originConfirmed,
+        onOriginConfirm: () {
+          unawaited(_confirmOrigin());
+        },
+        onChangeOrigin: () {
+          unawaited(_changeOrigin());
+        },
         onCardExpansionChanged: (bool isExpanded) {
           if (_isNavigationCardExpanded == isExpanded) {
             return;

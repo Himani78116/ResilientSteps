@@ -2,6 +2,39 @@ import 'package:latlong2/latlong.dart';
 
 import 'route_segment_safety.dart';
 
+/// Heat-index bands matching the backend tiers in
+/// `backend/app/modules/walksafe/services/weather_service.py` (HEAT_TIERS):
+/// penalty 5 ≈ feels-like 28 °C, 12 ≈ 32 °C, 20 ≈ 38 °C, 30 ≈ 42 °C.
+String? heatIndexLabelForPenalty(double? penalty) {
+  if (penalty == null) {
+    return null;
+  }
+  if (penalty < 1) {
+    return 'Pleasant';
+  }
+  if (penalty < 12) {
+    return 'Mild';
+  }
+  if (penalty < 20) {
+    return 'High';
+  }
+  return 'Extreme';
+}
+
+/// Displayable tree-canopy shade label. Tiny non-zero averages (below 0.5%)
+/// are shown as "<1%" instead of rounding to a misleading "0%".
+String shadeLabelFor(ScoredRoute? route) {
+  final double? avg = route?.averageShadeScore;
+  if (avg == null) {
+    return '-';
+  }
+  final int pct = avg.round().clamp(0, 100);
+  if (pct == 0 && avg > 0) {
+    return '<1%';
+  }
+  return '$pct%';
+}
+
 class ScoredRoute {
   const ScoredRoute({
     required this.points,
@@ -11,6 +44,8 @@ class ScoredRoute {
     required this.totalRisk,
     this.durationMinutes,
     this.warning,
+    this.comfortScore,
+    this.comfortLevel,
   });
 
   final List<LatLng> points;
@@ -20,4 +55,112 @@ class ScoredRoute {
   final double totalRisk;
   final double? durationMinutes;
   final String? warning;
+  final double? comfortScore;
+  final String? comfortLevel;
+
+  /// Human-readable comfort summary, or null when the backend has no comfort
+  /// data for this route. The UI keeps its existing rendering path when null.
+  String? get comfortSummary {
+    final double? score = comfortScore;
+    if (score == null) {
+      return null;
+    }
+
+    final List<String> reasons = <String>[];
+    final List<double> shadeValues = segments
+        .map((RouteSegmentSafety segment) => segment.shadeScore)
+        .whereType<double>()
+        .toList(growable: false);
+    if (shadeValues.isNotEmpty) {
+      final double averageShade =
+          shadeValues.reduce((double a, double b) => a + b) /
+          shadeValues.length;
+      if (averageShade >= 60) {
+        reasons.add('well shaded');
+      } else if (averageShade >= 30) {
+        reasons.add('some shade');
+      } else {
+        reasons.add('little shade');
+      }
+    }
+
+    final List<double> heatValues = segments
+        .map((RouteSegmentSafety segment) => segment.heatPenalty)
+        .whereType<double>()
+        .toList(growable: false);
+    if (heatValues.isNotEmpty) {
+      final double maxHeat = heatValues.reduce(
+        (double a, double b) => a > b ? a : b,
+      );
+      if (maxHeat >= 20) {
+        reasons.add('high heat');
+      } else if (maxHeat >= 5) {
+        reasons.add('moderate heat');
+      } else {
+        reasons.add('low heat');
+      }
+    }
+
+    final String? detail = reasons.isNotEmpty
+        ? reasons.join(', ')
+        : comfortLevel;
+    final String suffix = detail == null || detail.trim().isEmpty
+        ? ''
+        : ' — $detail';
+    return '${score.round()}% comfortable$suffix';
+  }
+
+  /// Average real tree-canopy shade across matched segments (0–100), or null
+  /// when the backend returned no shade scores for this route.
+  double? get averageShadeScore {
+    final List<double> values = segments
+        .map((RouteSegmentSafety segment) => segment.shadeScore)
+        .whereType<double>()
+        .toList(growable: false);
+    if (values.isEmpty) {
+      return null;
+    }
+    final double total = values.reduce(
+      (double a, double b) => a + b,
+    );
+    return total / values.length;
+  }
+
+  /// Number of route legs that matched a scored road segment (known shade).
+  int get shadeMatchedCount =>
+      segments.where((RouteSegmentSafety segment) => segment.shadeScore != null).length;
+
+  int get shadeLegCount => segments.length;
+
+  /// Share of route legs with known shade data (0–100), or null when the
+  /// route has no legs or no shade metadata at all.
+  int? get shadeCoveragePct {
+    if (segments.isEmpty) {
+      return null;
+    }
+    final bool hasShadeField = segments.any(
+      (RouteSegmentSafety segment) => segment.shadeScore != null,
+    );
+    if (!hasShadeField) {
+      return null;
+    }
+    return ((shadeMatchedCount / segments.length) * 100).round().clamp(0, 100);
+  }
+
+  /// Highest heat penalty along the route, or null when the backend returned
+  /// no heat data (older deployments or weather lookup degraded).
+  double? get maxHeatPenalty {
+    final List<double> values = segments
+        .map((RouteSegmentSafety segment) => segment.heatPenalty)
+        .whereType<double>()
+        .toList(growable: false);
+    if (values.isEmpty) {
+      return null;
+    }
+    return values.reduce((double a, double b) => a > b ? a : b);
+  }
+
+  /// Human label for the route's worst heat conditions, or null when the
+  /// backend has no heat data yet.
+  String? get heatIndexLabel => heatIndexLabelForPenalty(maxHeatPenalty);
 }

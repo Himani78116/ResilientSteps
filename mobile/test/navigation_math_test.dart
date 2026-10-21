@@ -30,5 +30,36 @@ void main() {
       expect(NavigationMath.rerouteThresholdMeters(50), 80);
       expect(NavigationMath.rerouteThresholdMeters(20), 44);
     });
+
+    test('nearestPointOnPolyline projects onto the closest segment', () {
+      final List<LatLng> routePoints = <LatLng>[
+        const LatLng(18.5200, 73.8560),
+        const LatLng(18.5200, 73.8570),
+      ];
+
+      final LatLng projected = NavigationMath.nearestPointOnPolyline(
+        const LatLng(18.5201, 73.8565),
+        routePoints,
+      );
+
+      // The projection stays on the east-west segment.
+      expect(projected.latitude, closeTo(18.5200, 0.0005));
+      expect(projected.longitude, closeTo(73.8565, 0.0005));
+    });
+
+    test('nearestPointOnPolyline clamps to route endpoints when far away', () {
+      final List<LatLng> routePoints = <LatLng>[
+        const LatLng(18.5200, 73.8560),
+        const LatLng(18.5200, 73.8570),
+      ];
+
+      // Far south of both endpoints, past the start.
+      final LatLng projected = NavigationMath.nearestPointOnPolyline(
+        const LatLng(18.5100, 73.8550),
+        routePoints,
+      );
+
+      expect(projected, const LatLng(18.5200, 73.8560));
+    });
   });
 }

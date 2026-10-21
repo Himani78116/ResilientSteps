@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.auth_middleware import optional_auth
 from app.core.rate_limiter import route_rate_limiter
-from app.modules.walksafe.services.risk_engine import score_route
+from app.modules.walksafe.services.risk_engine import PREFER_OPTIONS, score_route
 from app.modules.walksafe.services.routing_service import get_safe_route
 from app.modules.walksafe.services.safety_zone_service import (
     get_safety_zones as load_safety_zones,
@@ -160,10 +160,20 @@ async def route_safe(
     start_lon: float,
     end_lat: float,
     end_lon: float,
+    prefer: str = "balanced",
     db: AsyncSession = Depends(get_db),
     _user: str | None = Depends(optional_auth),
     _rate: None = Depends(route_rate_limiter),
 ):
+    if prefer not in PREFER_OPTIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported prefer value '{prefer}'. "
+                f"Expected one of: {', '.join(PREFER_OPTIONS)}."
+            ),
+        )
+
     try:
         route = await get_safe_route(start_lat, start_lon, end_lat, end_lon)
     except RuntimeError as exc:
@@ -175,7 +185,7 @@ async def route_safe(
             detail="No route or safety data found for this route area.",
         ) from exc
 
-    score = await score_route(route["coordinates"], db)
+    score = await score_route(route["coordinates"], db, prefer=prefer)
     score["coordinates"] = route["coordinates"]
     score["distance_km"] = route["distance_km"]
     score["duration_minutes"] = route["duration_minutes"]

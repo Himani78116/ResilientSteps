@@ -43,3 +43,13 @@ zone_thresholds:
   safe: 70
   cautious: 40
   risky: 0
+
+comfort:
+  safety_weight: 0.70
+  shade_weight: 0.20
+  heat_weight: 0.10
+  heat_penalty_enabled: true
+
+weather:
+  provider: open-meteo        # keyless; no key required
+  cache_ttl_seconds: 900
