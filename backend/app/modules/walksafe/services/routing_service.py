@@ -29,19 +29,30 @@ async def get_safe_route(
     """
     Fetch a pedestrian route from Valhalla.
     Returns decoded polyline coordinates and route metadata.
+
+    The costing is kept near-neutral (roads are fine, no strong lit/walkway
+    preference): aggressive penalties such as use_lit=1.0 or use_roads=0.2
+    made Valhalla take long walkway-heavy detours in Pune, which reported
+    ~7.7 km for trips that are ~1 km as the crow flies.
+
+    Each location carries an explicit `radius` so a pin placed inside a
+    large campus (no routable edge within it) cannot snap to an edge many
+    km away — Valhalla returns an error instead, and the caller surfaces
+    "no route found" rather than a wildly inflated trip.
     """
     payload = {
         "locations": [
-            {"lat": start_lat, "lon": start_lon},
-            {"lat": end_lat, "lon": end_lon},
+            {"lat": start_lat, "lon": start_lon, "radius": 400},
+            {"lat": end_lat, "lon": end_lon, "radius": 400},
         ],
         "costing": "pedestrian",
         "costing_options": {
             "pedestrian": {
-                "use_lit": 1.0,
-                "use_roads": 0.2,
-                "walkway_factor": 0.8,
-                "sidewalk_factor": 0.9,
+                "use_lit": 0.2,
+                "use_roads": 0.0,
+                "walkway_factor": 1.0,
+                "sidewalk_factor": 1.0,
+                "walking_speed": 5.0,
             }
         },
         "directions_options": {"units": "kilometers"},

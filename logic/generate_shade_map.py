@@ -24,6 +24,7 @@ from datetime import datetime
 
 import geopandas as gpd
 import osmnx as ox
+import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -133,21 +134,30 @@ OVERPASS_MIRRORS = [
     None,
     "https://overpass.kumi.systems/api",
     "https://overpass.private.coffee/api",
+    "https://overpass-api.de/api",
 ]
+
+# Overpass asks for exponential backoff when its queue is full (502/504).
+# Each mirror gets snapped attempts before moving to the next mirror.
+OVERPASS_BACKOFF_WAITS = [0, 30, 90, 240, 420]
 
 
 def _fetch_canopy_features(osmnx_place: str):
     last_error = None
     for endpoint in OVERPASS_MIRRORS:
-        try:
-            label = endpoint or "default (overpass-api.de)"
-            print(f"Querying Overpass endpoint: {label} ...")
-            if endpoint:
-                ox.settings.overpass_endpoint = endpoint
-            return ox.features_from_place(osmnx_place, tags=CANOPY_TAGS)
-        except Exception as exc:
-            last_error = exc
-            print(f"  Endpoint failed ({type(exc).__name__}): trying next mirror...")
+        for wait in OVERPASS_BACKOFF_WAITS:
+            try:
+                label = endpoint or "default (overpass-api.de)"
+                if wait:
+                    print(f"  Retrying {label} after {wait}s backoff...")
+                    time.sleep(wait)
+                print(f"Querying Overpass endpoint: {label} ...")
+                if endpoint:
+                    ox.settings.overpass_endpoint = endpoint
+                return ox.features_from_place(osmnx_place, tags=CANOPY_TAGS)
+            except Exception as exc:
+                last_error = exc
+                print(f"  Endpoint failed ({type(exc).__name__}): {exc}")
     raise last_error
 
 
@@ -182,7 +192,10 @@ def _load_canopy_layers(city_name: str, osmnx_place: str):
 
 
 def _compute_shade_per_segment(edges, trees, green) -> gpd.GeoDataFrame:
-    buffers = edges.geometry.buffer(BUFFER_DEGREES)
+    # The OSMnx edge GeoDataFrame carries a MultiIndex (u, v, key); every
+    # downstream join/assign below is positional on 0..n-1, so rebuild the
+    # buffer geometry index explicitly or pandas rejects the insertion.
+    buffers = edges.geometry.buffer(BUFFER_DEGREES).reset_index(drop=True)
     segments = gpd.GeoDataFrame(
         {"seg_index": range(len(edges))}, geometry=buffers, crs=edges.crs
     )
@@ -212,7 +225,10 @@ def _compute_shade_per_segment(edges, trees, green) -> gpd.GeoDataFrame:
             predicate="intersects",
         )
         if not hits.empty:
-            intersections = hits.geometry.intersection(hits["green_geom"])
+            # Geopandas joins drop the right frame's geometry column and
+            # leave `index_right` instead — re-attach the polygon per row.
+            right_polygons = hits["index_right"].map(green_utm["green_geom"])
+            intersections = hits["geometry"].intersection(right_polygons)
             hits["intersection_area_m2"] = intersections.area
             green_areas = hits.groupby("seg_index")["intersection_area_m2"].sum().reindex(
                 range(len(edges)), fill_value=0.0
@@ -271,7 +287,9 @@ async def run_ingest():
     trees, green = _load_canopy_layers(city_name, osmnx_place)
 
     start = time.time()
+    print(f"Scoring {len(edges):,} edges against canopy layers...", flush=True)
     scored = _compute_shade_per_segment(edges, trees, green)
+    print(f"Scoring done in {time.time() - start:.0f}s.", flush=True)
 
     engine = create_async_engine(database_url, echo=False)
     Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -286,6 +304,17 @@ async def run_ingest():
         dataset_version = latest[0]
 
     print(f"Updating shade for dataset_version {dataset_version}...")
+    # The batched UPDATEs filter on (osm_way_id, dataset_version), but the
+    # table only ships with a PK on `id` and a GiST index on geometry.
+    # Without this index every batch degrades into a full scan of ~450k
+    # rows — one-time cost, makes the whole job minutes instead of an hour.
+    await session.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS idx_road_segments_way_version "
+            "ON road_segments (osm_way_id, dataset_version)"
+        )
+    )
+    await session.commit()
     updates = []
     updated = 0
     skipped = 0
@@ -307,12 +336,20 @@ async def run_ingest():
             await _write_batch(session, updates)
             updated += len(updates)
             updates = []
+            await session.commit()
+            if updated % (BATCH_SIZE * 25) == 0:
+                print(
+                    f"  {updated:,} segment scores written "
+                    f"({time.time() - start:.0f}s elapsed)...",
+                    flush=True,
+                )
 
     if updates:
         await _write_batch(session, updates)
         updated += len(updates)
 
     await session.commit()
+    print(f"Done writing {updated:,} rows, committing...", flush=True)
 
     mean_shade = (
         scored["shade_score"].mean() if len(scored) else 0.0
