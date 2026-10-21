@@ -8,20 +8,63 @@ from app.main import app
 from app.core.auth_middleware import require_auth
 
 
+def _make_mock_db(codes):
+    """AsyncMock DB whose execute() returns category rows for `codes`.
+
+    Installed as the get_db override so tests never open a live Supabase
+    connection (asyncpg connections leak an unawaited cancellation task when
+    the test event loop closes — see learning/SOLUTIONS.md S-012).
+    """
+    mock_rows = [
+        MagicMock(
+            _mapping={
+                "code": code,
+                "label": code.replace("_", " ").title(),
+                "description": f"{code.replace('_', ' ').title()} category",
+                "module": "waste",
+            }
+        )
+        for code in codes
+    ]
+    mock_result = MagicMock()
+    mock_result.fetchall.return_value = mock_rows
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
+    return mock_db
+
+
 class WasteReportingTests(unittest.TestCase):
+    def setUp(self):
+        from app.core.database import get_db
+        app.dependency_overrides[get_db] = lambda: _make_mock_db(
+            [
+                "overflowing_bin",
+                "illegal_dumping",
+                "construction_debris",
+                "garbage_burning",
+                "dead_animal",
+            ]
+        )
+
     def test_get_waste_categories(self):
         with TestClient(app) as client:
             response = client.get("/waste/categories")
 
         self.assertEqual(response.status_code, 200)
         categories = response.json()
-        self.assertTrue(len(categories) >= 5)
         codes = [c["code"] for c in categories]
-        self.assertIn("overflowing_bin", codes)
-        self.assertIn("illegal_dumping", codes)
-        self.assertIn("construction_debris", codes)
-        self.assertIn("garbage_burning", codes)
-        self.assertIn("dead_animal", codes)
+        self.assertEqual(
+            codes,
+            [
+                "overflowing_bin",
+                "illegal_dumping",
+                "construction_debris",
+                "garbage_burning",
+                "dead_animal",
+            ],
+        )
+        self.assertEqual(categories[0]["label"], "Overflowing Bin")
 
     def test_post_waste_report_success(self):
         from app.core.rate_limiter import report_rate_limiter

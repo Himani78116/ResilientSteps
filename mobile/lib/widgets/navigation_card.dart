@@ -204,7 +204,9 @@ class _NavigationCardState extends State<NavigationCard> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '$etaMinutes min · $safetyScore% safe',
+                        _collapsedSubtitle(route, etaMinutes, safetyScore),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: const Color(0xFF5E6D80),
                           fontWeight: FontWeight.w600,
@@ -285,6 +287,28 @@ class _NavigationCardState extends State<NavigationCard> {
               ),
             ],
           ),
+          if (route.comfortSummary != null) ...<Widget>[
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.thermostat_rounded,
+                  size: 18,
+                  color: Color(0xFF2C8C63),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    route.comfortSummary!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF2C8C63),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (widget.isRerouting) ...<Widget>[
             const SizedBox(height: 16),
             Container(
@@ -422,6 +446,19 @@ class _NavigationCardState extends State<NavigationCard> {
 
   int _routeSafetyPercent(ScoredRoute route) =>
       route.averageSafetyScore.round().clamp(0, 100).toInt();
+
+  String _collapsedSubtitle(
+    ScoredRoute route,
+    int etaMinutes,
+    int safetyScore,
+  ) {
+    final double? comfortScore = route.comfortScore;
+    if (comfortScore == null) {
+      return '$etaMinutes min · $safetyScore% safe';
+    }
+    return '$etaMinutes min · $safetyScore% safe · '
+        '${comfortScore.round()}% comfy';
+  }
 
   String _navigationAdvisoryText(ScoredRoute route) {
     final String? warning = route.warning?.trim();
@@ -818,9 +855,7 @@ class HomeScreenBody extends StatelessWidget {
           onMapReady: onMapReady,
           overlayLayers: <Widget>[
             if (showSafetyZones)
-              RepaintBoundary(
-                child: SafetyZoneOverlay(zones: safetyZones),
-              ),
+              RepaintBoundary(child: SafetyZoneOverlay(zones: safetyZones)),
           ],
           routePolylines: routePolylines,
           markers: markers,

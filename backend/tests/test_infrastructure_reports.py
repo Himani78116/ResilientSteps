@@ -12,18 +12,48 @@ from app.modules.infrastructure.services.infra_reporting_service import (
 from app.modules.walksafe.services.reporting_service import reporting_service
 
 
+def _make_mock_db(codes):
+    """AsyncMock DB whose execute() returns category rows for `codes`.
+
+    Installed as the get_db override so tests never open a live Supabase
+    connection (asyncpg connections leak an unawaited cancellation task when
+    the test event loop closes — see learning/SOLUTIONS.md S-012).
+    """
+    mock_rows = [
+        MagicMock(
+            _mapping={
+                "code": code,
+                "label": code.replace("_", " ").title(),
+                "description": f"{code.replace('_', ' ').title()} category",
+                "module": "infrastructure",
+            }
+        )
+        for code in codes
+    ]
+    mock_result = MagicMock()
+    mock_result.fetchall.return_value = mock_rows
+
+    mock_db = AsyncMock()
+    mock_db.execute.return_value = mock_result
+    return mock_db
+
+
 class InfrastructureReportingTests(unittest.TestCase):
+    def setUp(self):
+        from app.core.database import get_db
+        app.dependency_overrides[get_db] = lambda: _make_mock_db(
+            ["pothole", "streetlight", "footpath"]
+        )
+
     def test_get_infra_categories(self):
         with TestClient(app) as client:
             response = client.get("/infra/categories")
 
         self.assertEqual(response.status_code, 200)
         categories = response.json()
-        self.assertTrue(len(categories) >= 8)
         codes = [c["code"] for c in categories]
-        self.assertIn("pothole", codes)
-        self.assertIn("streetlight", codes)
-        self.assertIn("footpath", codes)
+        self.assertEqual(codes, ["pothole", "streetlight", "footpath"])
+        self.assertEqual(categories[0]["label"], "Pothole")
 
     def test_post_infra_report_success(self):
         from app.core.rate_limiter import report_rate_limiter

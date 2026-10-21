@@ -26,7 +26,10 @@ class RoutingService {
 
   Future<ScoredRoute?> getSafestRoute(LatLng start, LatLng end) async {
     // Try unified /route-safe endpoint first.
-    final Map<String, dynamic>? scorePayload = await _fetchRouteSafety(start, end);
+    final Map<String, dynamic>? scorePayload = await _fetchRouteSafety(
+      start,
+      end,
+    );
     List<LatLng>? routePoints;
     if (scorePayload != null) {
       final Object? coordsRaw = scorePayload['coordinates'];
@@ -79,6 +82,8 @@ class RoutingService {
       totalRisk: 100 - safetyScore,
       durationMinutes: _asDouble(finalScorePayload?['duration_minutes']),
       warning: finalScorePayload?['warning']?.toString(),
+      comfortScore: _asDouble(finalScorePayload?['comfort_score']),
+      comfortLevel: finalScorePayload?['comfort_level']?.toString(),
     );
   }
 
@@ -187,8 +192,7 @@ class RoutingService {
   Map<String, dynamic>? _tryParseJsonMap(String body) =>
       api_utils.tryParseJsonMap(body);
 
-  Map<String, dynamic>? _coerceMap(Object? value) =>
-      api_utils.coerceMap(value);
+  Map<String, dynamic>? _coerceMap(Object? value) => api_utils.coerceMap(value);
 
   double? _asDouble(Object? value) => api_utils.asDouble(value);
 
@@ -272,6 +276,9 @@ class RoutingService {
           incidentDensity: _asDouble(segment['incident_count']),
           lightingHeuristic: lightingHeuristic,
           distanceToQuery: _asDouble(segment['match_distance_m']),
+          shadeScore: _asDouble(segment['shade_score']),
+          heatPenalty: _asDouble(segment['heat_penalty']),
+          comfortScore: _asDouble(segment['comfort_score']),
         ),
       );
     }

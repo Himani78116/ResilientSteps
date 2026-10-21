@@ -144,6 +144,7 @@ class _ReadyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final int safetyScore = route.averageSafetyScore.round().clamp(0, 100);
     final _RouteCardSummary summary = _RouteCardSummary.fromRoute(route);
+    final String? comfortSummary = route.comfortSummary;
 
     return Column(
       key: const ValueKey<String>('ready'),
@@ -205,6 +206,13 @@ class _ReadyState extends StatelessWidget {
               backgroundColor: const Color(0xFFFCEBE7),
               foregroundColor: const Color(0xFFC75B48),
             ),
+            if (comfortSummary != null)
+              _SummaryChip(
+                icon: Icons.thermostat_rounded,
+                label: comfortSummary,
+                backgroundColor: const Color(0xFFEAF4EE),
+                foregroundColor: const Color(0xFF2C8C63),
+              ),
           ],
         ),
         const SizedBox(height: 14),
