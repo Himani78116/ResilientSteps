@@ -7,11 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../controllers/navigation_controller.dart';
 import '../models/place_suggestion.dart';
+import '../models/nearby_place.dart';
 import '../models/scored_route.dart';
 import '../models/safety_zone.dart';
 import '../services/location_service.dart';
 import '../services/navigation_math.dart';
 import '../services/place_search_service.dart';
+import '../services/nearby_places_service.dart';
 import '../services/routing_service.dart';
 import '../services/safety_heatmap_service.dart';
 import '../services/auth_service.dart';
@@ -21,6 +23,7 @@ import '../widgets/incident_modal.dart';
 import '../widgets/map_layers_builder.dart';
 import '../widgets/navigation_card.dart';
 import '../widgets/saved_place_chips.dart';
+import '../widgets/nearby_places_sheet.dart';
 import 'destination_search_screen.dart';
 import 'login_screen.dart';
 import 'settings_profile_screen.dart';
@@ -42,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final SafetyHeatmapService _heatmapService = SafetyHeatmapService();
   final SosService _sosService = SosService();
   final PlaceSearchService _placeSearchService = PlaceSearchService();
+  final NearbyPlacesService _nearbyPlacesService = NearbyPlacesService();
   late final NavigationController _navController;
   StreamSubscription<AuthState>? _authSubscription;
 
@@ -56,6 +60,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isNavigationCardExpanded = false;
   double _currentZoom = 14.8;
   String? _destinationLabel;
+  NearbyCategory? _nearbyCategory;
+  List<NearbyPlace> _nearbyPlaces = <NearbyPlace>[];
+  bool _isLoadingNearbyPlaces = false;
 
   // Origin confirmation (Google-Maps style): the live fix is reverse-geocoded
   // into a place name and the user confirms it, or types the real start.
@@ -87,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
     destinationLabel: _destinationLabel ?? 'Destination',
     heading: _navController.currentHeading,
     zoom: _currentZoom,
-  );
+  )..addAll(MapLayersBuilder.buildNearbyMarkers(_nearbyPlaces));
 
   List<Polyline> get _routePolylines {
     final ScoredRoute? route = _navController.selectedRoute;
@@ -116,11 +123,14 @@ class _HomeScreenState extends State<HomeScreen> {
       AuthState event,
     ) {
       if (event.event == AuthChangeEvent.signedIn) {
-        SavedPlacesService.instance.syncFromSupabase().then((_) {
-          if (mounted) {
-            setState(() {});
-          }
-        }).catchError((_) {});
+        SavedPlacesService.instance
+            .syncFromSupabase()
+            .then((_) {
+              if (mounted) {
+                setState(() {});
+              }
+            })
+            .catchError((_) {});
       }
       if (event.event == AuthChangeEvent.signedOut && mounted) {
         setState(() {});
@@ -386,6 +396,72 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _loadNearbyPlaces(NearbyCategory category) async {
+    if (_isLoadingNearbyPlaces) {
+      return;
+    }
+    setState(() {
+      _nearbyCategory = category;
+      _isLoadingNearbyPlaces = true;
+      _nearbyPlaces = <NearbyPlace>[];
+    });
+
+    final LatLng? location = await _locationService.getCurrentLocation();
+    if (!mounted) {
+      return;
+    }
+    if (location == null) {
+      setState(() => _isLoadingNearbyPlaces = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enable location permission and location services to find places near you.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final List<NearbyPlace> places = await _nearbyPlacesService.findNearby(
+        latitude: location.latitude,
+        longitude: location.longitude,
+        category: category,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _nearbyPlaces = places;
+        _isLoadingNearbyPlaces = false;
+        _lastKnownUserPoint = location;
+      });
+      _mapController.move(location, 15.2);
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => NearbyPlacesSheet(
+          category: category,
+          places: places,
+          onPlaceSelected: (NearbyPlace place) {
+            Navigator.of(context).pop();
+            _setDestination(place.latitude, place.longitude, place.name);
+          },
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _isLoadingNearbyPlaces = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
   void _clearRoute() {
     setState(() {
       _destinationLabel = null;
@@ -613,6 +689,8 @@ class _HomeScreenState extends State<HomeScreen> {
         showSafetyZones: _showSafetyZones,
         routePolylines: _routePolylines,
         markers: _markers,
+        nearbyCategory: _nearbyCategory,
+        isLoadingNearbyPlaces: _isLoadingNearbyPlaces,
         destinationLabel: _destinationLabel,
         isLoadingRoute: _isLoadingRoute,
         isLoadingLocation: _isLoadingLocation,
@@ -624,11 +702,8 @@ class _HomeScreenState extends State<HomeScreen> {
         isRerouting: _navController.isRerouting,
         savedPlacesBar: AuthService.instance.isLoggedIn
             ? SavedPlaceChips(
-                onPlaceSelected: (
-                  double lat,
-                  double lon,
-                  String name,
-                ) => _setDestination(lat, lon, name),
+                onPlaceSelected: (double lat, double lon, String name) =>
+                    _setDestination(lat, lon, name),
               )
             : null,
         onMapReady: () {
@@ -666,6 +741,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onSearchTap: () {
           unawaited(_openDestinationSearch(initialQuery: _destinationLabel));
         },
+        onNearbyCategory: _loadNearbyPlaces,
         onClearRoute: _destinationLabel == null || _isLoadingRoute
             ? null
             : _clearRoute,

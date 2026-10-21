@@ -8,6 +8,7 @@ import '../controllers/navigation_controller.dart';
 import '../models/route_segment_safety.dart';
 import '../models/scored_route.dart';
 import '../services/navigation_math.dart';
+import '../models/nearby_place.dart';
 
 class MapLayersBuilder {
   MapLayersBuilder._();
@@ -21,11 +22,7 @@ class MapLayersBuilder {
     BorderSide(color: Colors.white, width: 4),
   );
   static const List<BoxShadow> _userMarkerShadows = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x422E7CF6),
-      blurRadius: 20,
-      offset: Offset(0, 10),
-    ),
+    BoxShadow(color: Color(0x422E7CF6), blurRadius: 20, offset: Offset(0, 10)),
   ];
   static const BoxDecoration _destinationMarkerDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -214,6 +211,49 @@ class MapLayersBuilder {
     }
 
     return markers;
+  }
+
+  static List<Marker> buildNearbyMarkers(List<NearbyPlace> places) {
+    return places
+        .map(
+          (NearbyPlace place) => Marker(
+            point: place.point,
+            width: 48,
+            height: 58,
+            child: Tooltip(
+              message: place.name,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF0F6B63), width: 3),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(color: Color(0x33000000), blurRadius: 8),
+                  ],
+                ),
+                child: Icon(
+                  _nearbyIcon(place.category),
+                  color: const Color(0xFF0F6B63),
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  static IconData _nearbyIcon(NearbyCategory category) {
+    switch (category) {
+      case NearbyCategory.hospital:
+        return Icons.local_hospital_rounded;
+      case NearbyCategory.police:
+        return Icons.local_police_rounded;
+      case NearbyCategory.metro:
+        return Icons.subway_rounded;
+      case NearbyCategory.bus:
+        return Icons.directions_bus_rounded;
+    }
   }
 
   static List<Polyline> _buildActiveRouteSegmentOverlays(
