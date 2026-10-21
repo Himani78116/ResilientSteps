@@ -181,6 +181,16 @@ class RoutingService {
   }
 
   Future<http.Response?> _safeGet(Uri uri) async {
+    final http.Response? first = await _attemptGet(uri);
+    if (first != null) {
+      return first;
+    }
+    // Transient first-call failures (cold backend, slow DB round trip) get a
+    // single immediate retry before falling back to the legacy endpoints.
+    return _attemptGet(uri);
+  }
+
+  Future<http.Response?> _attemptGet(Uri uri) async {
     try {
       return await _client.get(uri).timeout(_requestTimeout);
     } catch (e) {
