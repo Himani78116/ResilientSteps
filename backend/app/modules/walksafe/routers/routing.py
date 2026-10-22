@@ -14,6 +14,7 @@ from app.modules.walksafe.services.safety_zone_service import (
     get_safety_zones as load_safety_zones,
 )
 from app.modules.walksafe.services.nearby_places_service import (
+    ALL_CATEGORY,
     CATEGORY_FILTERS,
     MAX_RADIUS_METERS,
     find_nearby_places,
@@ -93,7 +94,7 @@ async def nearby_places(
 ):
     if not -90 <= lat <= 90 or not -180 <= lon <= 180:
         raise HTTPException(status_code=422, detail="Invalid coordinates.")
-    if category not in CATEGORY_FILTERS:
+    if category != ALL_CATEGORY and category not in CATEGORY_FILTERS:
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported nearby category: {category}.",

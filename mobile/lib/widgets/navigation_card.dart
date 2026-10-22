@@ -1212,6 +1212,8 @@ class NearbyCategoryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final IconData icon;
     switch (category) {
+      case NearbyCategory.all:
+        icon = Icons.near_me_rounded;
       case NearbyCategory.hospital:
         icon = Icons.local_hospital_rounded;
       case NearbyCategory.police:
@@ -1333,8 +1335,6 @@ class HomeScreenBody extends StatelessWidget {
     required this.showSafetyZones,
     required this.routePolylines,
     required this.markers,
-    required this.nearbyCategory,
-    required this.isLoadingNearbyPlaces,
     required this.destinationLabel,
     required this.isLoadingRoute,
     required this.isLoadingLocation,
@@ -1350,7 +1350,6 @@ class HomeScreenBody extends StatelessWidget {
     required this.onPositionChanged,
     required this.onRecenter,
     required this.onSearchTap,
-    required this.onNearbyCategory,
     required this.onClearRoute,
     required this.profileIcon,
     required this.profileIconColor,
@@ -1369,6 +1368,10 @@ class HomeScreenBody extends StatelessWidget {
     required this.originNeedsConfirm,
     required this.onOriginConfirm,
     required this.onChangeOrigin,
+    this.startNearbyLabel,
+    this.endNearbyLabel,
+    this.onStartNearby,
+    this.onEndNearby,
   });
 
   final MapController mapController;
@@ -1377,8 +1380,6 @@ class HomeScreenBody extends StatelessWidget {
   final bool showSafetyZones;
   final List<Polyline> routePolylines;
   final List<Marker> markers;
-  final NearbyCategory? nearbyCategory;
-  final bool isLoadingNearbyPlaces;
   final String? destinationLabel;
   final bool isLoadingRoute;
   final bool isLoadingLocation;
@@ -1394,7 +1395,6 @@ class HomeScreenBody extends StatelessWidget {
   final ValueChanged<MapCamera> onPositionChanged;
   final VoidCallback onRecenter;
   final VoidCallback onSearchTap;
-  final ValueChanged<NearbyCategory> onNearbyCategory;
   final VoidCallback? onClearRoute;
   final IconData profileIcon;
   final Color profileIconColor;
@@ -1413,6 +1413,12 @@ class HomeScreenBody extends StatelessWidget {
   final bool originNeedsConfirm;
   final VoidCallback onOriginConfirm;
   final VoidCallback onChangeOrigin;
+  /// Set on the confirmed route start/end to surface a Nearby-place badge
+  /// chip next to the safety-zones toggle.
+  final String? startNearbyLabel;
+  final String? endNearbyLabel;
+  final VoidCallback? onStartNearby;
+  final VoidCallback? onEndNearby;
 
   @override
   Widget build(BuildContext context) {
@@ -1490,38 +1496,21 @@ class HomeScreenBody extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: <Widget>[
-                    NearbyCategoryChip(
-                      category: NearbyCategory.hospital,
-                      isSelected: nearbyCategory == NearbyCategory.hospital,
-                      isLoading:
-                          isLoadingNearbyPlaces &&
-                          nearbyCategory == NearbyCategory.hospital,
-                      onTap: onNearbyCategory,
-                    ),
-                    NearbyCategoryChip(
-                      category: NearbyCategory.police,
-                      isSelected: nearbyCategory == NearbyCategory.police,
-                      isLoading:
-                          isLoadingNearbyPlaces &&
-                          nearbyCategory == NearbyCategory.police,
-                      onTap: onNearbyCategory,
-                    ),
-                    NearbyCategoryChip(
-                      category: NearbyCategory.metro,
-                      isSelected: nearbyCategory == NearbyCategory.metro,
-                      isLoading:
-                          isLoadingNearbyPlaces &&
-                          nearbyCategory == NearbyCategory.metro,
-                      onTap: onNearbyCategory,
-                    ),
-                    NearbyCategoryChip(
-                      category: NearbyCategory.bus,
-                      isSelected: nearbyCategory == NearbyCategory.bus,
-                      isLoading:
-                          isLoadingNearbyPlaces &&
-                          nearbyCategory == NearbyCategory.bus,
-                      onTap: onNearbyCategory,
-                    ),
+                    if (startNearbyLabel != null &&
+                        startNearbyLabel!.isNotEmpty)
+                      MapToggleChip(
+                        label: startNearbyLabel!,
+                        icon: Icons.trip_origin_rounded,
+                        isSelected: false,
+                        onTap: onStartNearby ?? () {},
+                      ),
+                    if (endNearbyLabel != null && endNearbyLabel!.isNotEmpty)
+                      MapToggleChip(
+                        label: endNearbyLabel!,
+                        icon: Icons.location_on_rounded,
+                        isSelected: false,
+                        onTap: onEndNearby ?? () {},
+                      ),
                     MapToggleChip(
                       label: 'Show Safety Zones',
                       icon: showSafetyZones

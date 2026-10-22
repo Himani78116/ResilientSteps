@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -98,4 +99,116 @@ void main() {
       expect(places.first.anchor, NearbyAnchor.routeStart);
     },
   );
+
+  test('start-only badge anchor tags routeStart with a single request', () async {
+    final List<Uri> requested = <Uri>[];
+    final MockClient client = MockClient((http.Request request) async {
+      requested.add(request.url);
+      return _placesResponse(<Map<String, dynamic>>[
+        _placePayload('node/11', 18.530, 73.852),
+      ]);
+    });
+
+    final NearbyPlacesService service = NearbyPlacesService(
+      client: client,
+      apiBaseUrl: 'http://mock-api',
+    );
+
+    final List<NearbyPlace> places = await service.findNearbyForAnchors(
+      category: NearbyCategory.metro,
+      start: const LatLng(18.52, 73.85),
+      end: null,
+    );
+
+    expect(requested, hasLength(1));
+    expect(places, hasLength(1));
+    expect(places.first.anchor, NearbyAnchor.routeStart);
+  });
+
+  test('destination-only badge anchor tags routeEnd with a single request',
+      () async {
+    final List<Uri> requested = <Uri>[];
+    final MockClient client = MockClient((http.Request request) async {
+      requested.add(request.url);
+      return _placesResponse(<Map<String, dynamic>>[
+        _placePayload('node/12', 18.540, 73.862),
+      ]);
+    });
+
+    final NearbyPlacesService service = NearbyPlacesService(
+      client: client,
+      apiBaseUrl: 'http://mock-api',
+    );
+
+    final List<NearbyPlace> places = await service.findNearbyForAnchors(
+      category: NearbyCategory.bus,
+      start: null,
+      end: const LatLng(18.54, 73.86),
+    );
+
+    expect(requested, hasLength(1));
+    expect(places, hasLength(1));
+    expect(places.first.anchor, NearbyAnchor.routeEnd);
+  });
+
+  test('a stalled request is retried once before failing with a timeout text',
+      () async {
+    final List<Uri> requested = <Uri>[];
+    final MockClient client = MockClient((http.Request request) async {
+      requested.add(request.url);
+      // Never completes; the injected timeout aborts it every attempt.
+      return Completer<http.Response>().future;
+    });
+
+    final NearbyPlacesService service = NearbyPlacesService(
+      client: client,
+      apiBaseUrl: 'http://mock-api',
+      requestTimeout: const Duration(milliseconds: 10),
+    );
+
+    final String message = await service
+        .findNearby(
+          latitude: 18.52,
+          longitude: 73.85,
+          category: NearbyCategory.hospital,
+        )
+        .then((_) => 'unexpected success', onError: (Object error) {
+          return error.toString();
+        });
+
+    // Two attempts (one retry), then the friendly timeout wording.
+    expect(requested, hasLength(2));
+    expect(
+      message,
+      contains('took too long'),
+    );
+  });
+
+  test('connection failures get a reachability-focused message', () async {
+    final MockClient client = MockClient((http.Request request) async {
+      throw http.ClientException('Connection refused');
+    });
+
+    final NearbyPlacesService service = NearbyPlacesService(
+      client: client,
+      apiBaseUrl: 'http://mock-api',
+      requestTimeout: const Duration(milliseconds: 10),
+    );
+
+    Object? error;
+    try {
+      await service.findNearby(
+        latitude: 18.52,
+        longitude: 73.85,
+        category: NearbyCategory.hospital,
+      );
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error, isNotNull);
+    expect(
+      error.toString(),
+      contains('reach the nearby-places server'),
+    );
+  });
 }

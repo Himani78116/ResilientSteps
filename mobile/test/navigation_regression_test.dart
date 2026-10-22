@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -52,6 +53,47 @@ void main() {
         markers.first.point.longitude,
         isNot(closeTo(mapCenter.longitude, 0.000001)),
       );
+    });
+
+    test('origin pill marker appears at the route start when provided', () {
+      const LatLng user = LatLng(18.5200, 73.8560);
+      const LatLng start = LatLng(18.5245, 73.8555);
+      const LatLng destination = LatLng(18.5300, 73.8600);
+
+      final List<Marker> base = MapLayersBuilder.buildNavigationMarkers(
+        start: user,
+        destination: destination,
+        destinationLabel: 'Destination',
+        heading: 90,
+        zoom: 15.0,
+      );
+      final List<Marker> withStart = MapLayersBuilder.buildNavigationMarkers(
+        start: user,
+        destination: destination,
+        destinationLabel: 'Destination',
+        heading: 90,
+        zoom: 15.0,
+        origin: start,
+        originLabel: 'Spicer Adventist University',
+      );
+      expect(base, hasLength(2));
+      expect(withStart, hasLength(3));
+      final Marker startMarker = withStart
+          .firstWhere((Marker marker) => marker.point == start);
+      expect(startMarker.point.latitude, closeTo(18.5245, 0.0000001));
+      expect(startMarker.point.longitude, closeTo(73.8555, 0.0000001));
+    });
+
+    test('origin pill is absent when no origin is passed', () {
+      const LatLng destination = LatLng(18.5300, 73.8600);
+      final List<Marker> base = MapLayersBuilder.buildNavigationMarkers(
+        start: const LatLng(18.5200, 73.8560),
+        destination: destination,
+        destinationLabel: 'Destination',
+        heading: 90,
+        zoom: 15.0,
+      );
+      expect(base, hasLength(2));
     });
 
     test('recenter targets the current user position', () async {

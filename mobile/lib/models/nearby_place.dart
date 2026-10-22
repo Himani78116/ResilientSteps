@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
 enum NearbyCategory {
+  all('all', 'Nearby places', 'Nearby', 'near_me'),
   hospital('hospital', 'Hospitals near me', 'Hospital', 'local_hospital'),
   police('police', 'Police stations', 'Police station', 'local_police'),
   metro('metro', 'Metro stations', 'Metro station', 'subway'),

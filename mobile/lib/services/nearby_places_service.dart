@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -8,12 +9,26 @@ import '../config/app_config.dart';
 import '../models/nearby_place.dart';
 
 class NearbyPlacesService {
-  NearbyPlacesService({http.Client? client, String? apiBaseUrl})
-    : _client = client ?? http.Client(),
-      _apiBaseUrl = apiBaseUrl ?? AppConfig.apiBaseUrl;
+  NearbyPlacesService({
+    http.Client? client,
+    String? apiBaseUrl,
+    Duration? requestTimeout,
+  }) : _client = client ?? http.Client(),
+       _apiBaseUrl = apiBaseUrl ?? AppConfig.apiBaseUrl,
+       _requestTimeout = requestTimeout ?? const Duration(seconds: 25);
 
   final http.Client _client;
   final String _apiBaseUrl;
+  final Duration _requestTimeout;
+
+  Future<http.Response> _getWithRetry(Uri uri) async {
+    try {
+      return await _client.get(uri).timeout(_requestTimeout);
+    } on TimeoutException {
+      // One retry so a single stalled request does not fail the whole tap.
+      return await _client.get(uri).timeout(_requestTimeout);
+    }
+  }
 
   Future<List<NearbyPlace>> findNearby({
     required double latitude,
@@ -31,7 +46,18 @@ class NearbyPlacesService {
     );
     late final http.Response response;
     try {
-      response = await _client.get(uri).timeout(const Duration(seconds: 15));
+      response = await _getWithRetry(uri);
+    } on TimeoutException {
+      debugPrint('NearbyPlacesService: timed out for $uri');
+      throw Exception(
+        'Searching nearby places took too long. Please try again in a moment.',
+      );
+    } on http.ClientException catch (error) {
+      debugPrint('NearbyPlacesService: request failed for $uri: $error');
+      throw Exception(
+        'Cannot reach the nearby-places server. Make sure the backend is '
+        'running, then try again.',
+      );
     } catch (error) {
       debugPrint('NearbyPlacesService: request failed for $uri: $error');
       throw Exception(

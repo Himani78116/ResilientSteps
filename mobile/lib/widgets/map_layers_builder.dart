@@ -154,6 +154,8 @@ class MapLayersBuilder {
     required String destinationLabel,
     required double heading,
     required double zoom,
+    LatLng? origin,
+    String? originLabel,
   }) {
     final double userMarkerDiameter = _userMarkerDiameterForZoom(zoom);
     final double userMarkerFrame = _userMarkerFrameForZoom(zoom);
@@ -210,6 +212,64 @@ class MapLayersBuilder {
       );
     }
 
+    // Route-start pill: floats just above the origin point so the user can
+    // see where the walk begins even while their live blue dot is elsewhere
+    // (typed origin) or overlapping it.
+    if (origin != null) {
+      markers.add(
+        Marker(
+          point: origin,
+          width: 104,
+          height: 64,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Tooltip(
+              message: originLabel ?? 'Route start',
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF30C56A), width: 3),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(
+                        Icons.flag_rounded,
+                        size: 16,
+                        color: Color(0xFF1B6B3A),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Start',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1B6B3A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return markers;
   }
 
@@ -245,6 +305,8 @@ class MapLayersBuilder {
 
   static IconData _nearbyIcon(NearbyCategory category) {
     switch (category) {
+      case NearbyCategory.all:
+        return Icons.near_me_rounded;
       case NearbyCategory.hospital:
         return Icons.local_hospital_rounded;
       case NearbyCategory.police:

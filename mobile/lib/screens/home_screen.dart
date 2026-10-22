@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -60,7 +60,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isNavigationCardExpanded = false;
   double _currentZoom = 14.8;
   String? _destinationLabel;
-  NearbyCategory? _nearbyCategory;
   List<NearbyPlace> _nearbyPlaces = <NearbyPlace>[];
   bool _isLoadingNearbyPlaces = false;
 
@@ -88,13 +87,27 @@ class _HomeScreenState extends State<HomeScreen> {
       ? AuthService.instance.displayName
       : 'Sign in';
 
-  List<Marker> get _markers => MapLayersBuilder.buildNavigationMarkers(
-    start: _liveUserPoint,
-    destination: _navController.destinationLatLng,
-    destinationLabel: _destinationLabel ?? 'Destination',
-    heading: _navController.currentHeading,
-    zoom: _currentZoom,
-  )..addAll(MapLayersBuilder.buildNearbyMarkers(_nearbyPlaces));
+  List<Marker> get _markers {
+    // Origin pill: visible whenever a destination exists â€” the route's start
+    // (its first point) once loaded, otherwise the planning origin so the pin
+    // is already on the map while the route loads.
+    final ScoredRoute? route = _navController.selectedRoute;
+    final LatLng? destination = _navController.destinationLatLng;
+    final LatLng? origin = destination == null
+        ? null
+        : (route != null && route.points.isNotEmpty
+              ? route.points.first
+              : _planningStart);
+    return MapLayersBuilder.buildNavigationMarkers(
+      start: _liveUserPoint,
+      destination: destination,
+      destinationLabel: _destinationLabel ?? 'Destination',
+      heading: _navController.currentHeading,
+      zoom: _currentZoom,
+      origin: origin,
+      originLabel: _explicitOrigin?.title,
+    )..addAll(MapLayersBuilder.buildNearbyMarkers(_nearbyPlaces));
+  }
 
   List<Polyline> get _routePolylines {
     final ScoredRoute? route = _navController.selectedRoute;
@@ -253,6 +266,55 @@ class _HomeScreenState extends State<HomeScreen> {
   /// GPS fix. Active navigation/rerouting always stays on the live point.
   LatLng get _planningStart => _explicitOrigin?.point ?? _liveUserPoint;
 
+  /// Short badge text (Nearby: place) for the confirmed start point.
+  /// Appears only after the Yes/No origin banner has been answered so the
+  /// badge anchor is a place the user actually endorsed.
+  String? get _startNearbyBadgeLabel {
+    if (_originLabelLoading) {
+      return null;
+    }
+    if (_explicitOrigin == null && !_originConfirmed) {
+      return null;
+    }
+    final String? title = _explicitOrigin?.title ?? _suggestedOriginLabel;
+    if (title == null || title.isEmpty) {
+      return null;
+    }
+    return _badgeLabel(title);
+  }
+
+  /// Short badge text for the chosen destination, visible once a destination
+  /// point (not just a loading label) exists.
+  String? get _endNearbyBadgeLabel {
+    if (_destinationAnchorPoint == null) {
+      return null;
+    }
+    final String label = _destinationLabel ?? '';
+    if (label.isEmpty) {
+      return null;
+    }
+    return _badgeLabel(label);
+  }
+
+  LatLng? get _destinationAnchorPoint {
+    final LatLng? destination = _navController.destinationLatLng;
+    if (destination != null) {
+      return destination;
+    }
+    final ScoredRoute? route = _navController.selectedRoute;
+    if (route != null && route.points.isNotEmpty) {
+      return route.points.last;
+    }
+    return null;
+  }
+
+  /// Keeps badge chips readable: first comma segment, capped at 18 chars.
+  String _badgeLabel(String title) {
+    final String primary = title.split(',').first.trim();
+    const int max = 18;
+    return primary.length <= max ? primary : '${primary.substring(0, max)}â€¦';
+  }
+
   Future<void> _confirmOrigin() async {
     setState(() {
       _originConfirmed = true;
@@ -282,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final LatLng? destination = _navController.destinationLatLng;
     if (destination != null) {
-      // Destination already chosen (e.g. route still pending retry) — reload
+      // Destination already chosen (e.g. route still pending retry) â€” reload
       // the route from the newly typed origin.
       await _setDestination(destination.latitude, destination.longitude, _destinationLabel ?? 'Pinned destination');
     } else {
@@ -396,84 +458,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _loadNearbyPlaces(NearbyCategory category) async {
+  /// Fetches nearby places for a single badge anchor point and updates the
+  /// map markers. Returns null when skipped (a load already in flight) or
+  /// failed (a snackbar was shown). Does not open the results sheet.
+  Future<List<NearbyPlace>?> _fetchNearbyForAnchor({
+    required NearbyCategory category,
+    required LatLng anchor,
+    required NearbyAnchor anchorType,
+  }) async {
     if (_isLoadingNearbyPlaces) {
-      return;
+      return null;
     }
     setState(() {
-      _nearbyCategory = category;
       _isLoadingNearbyPlaces = true;
       _nearbyPlaces = <NearbyPlace>[];
     });
-
-    // Anchor the search to the route when one exists. During active
-    // navigation the "start point" is the live fix; while planning it is the
-    // confirmed origin. The destination uses the pinned point (or the end of
-    // the loaded route as a fallback).
-    final ScoredRoute? route = _navController.selectedRoute;
-    final LatLng? routeStart = route != null
-        ? (_navController.navState == NavigationState.active
-              ? _liveUserPoint
-              : _planningStart)
-        : null;
-    final LatLng? routeEnd = _navController.destinationLatLng ??
-        (route != null && route.points.isNotEmpty ? route.points.last : null);
-
-    LatLng? fallbackLocation;
-    final bool hasAnchors = routeStart != null || routeEnd != null;
-    if (!hasAnchors) {
-      fallbackLocation = await _locationService.getCurrentLocation();
-      if (!mounted) {
-        return;
-      }
-      if (fallbackLocation == null) {
-        setState(() => _isLoadingNearbyPlaces = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Enable location permission and location services to find places near you.',
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
     try {
       final List<NearbyPlace> places = await _nearbyPlacesService
           .findNearbyForAnchors(
             category: category,
-            start: routeStart ?? fallbackLocation,
-            end: routeEnd,
+            start: anchorType == NearbyAnchor.routeStart ? anchor : null,
+            end: anchorType == NearbyAnchor.routeEnd ? anchor : null,
           );
       if (!mounted) {
-        return;
+        return null;
       }
       setState(() {
         _nearbyPlaces = places;
         _isLoadingNearbyPlaces = false;
-        if (fallbackLocation != null) {
-          _lastKnownUserPoint = fallbackLocation;
-        }
       });
-      final LatLng cameraFocus =
-          routeStart ?? routeEnd ?? fallbackLocation ?? _cameraTarget;
-      _mapController.move(cameraFocus, 15.2);
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => NearbyPlacesSheet(
-          category: category,
-          places: places,
-          onPlaceSelected: (NearbyPlace place) {
-            Navigator.of(context).pop();
-            _setDestination(place.latitude, place.longitude, place.name);
-          },
-        ),
-      );
+      return places;
     } catch (error) {
       if (!mounted) {
-        return;
+        return null;
       }
       setState(() => _isLoadingNearbyPlaces = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -481,7 +498,75 @@ class _HomeScreenState extends State<HomeScreen> {
           content: Text(error.toString().replaceFirst('Exception: ', '')),
         ),
       );
+      return null;
     }
+  }
+
+  Future<void> _showNearbyResultsSheet(
+    NearbyCategory category,
+    List<NearbyPlace> places,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => NearbyPlacesSheet(
+        category: category,
+        places: places,
+        onPlaceSelected: (NearbyPlace place) {
+          Navigator.of(context).pop();
+          _setDestination(place.latitude, place.longitude, place.name);
+        },
+      ),
+    );
+  }
+
+  /// Opens the "Nearby places to <title>" chooser sheet; picking a category
+  /// searches around [anchor], closes the chooser and shows the results
+  /// (bifurcated by type when "All" is chosen).
+  Future<void> _openNearbyPicker({
+    required String title,
+    required LatLng anchor,
+    required NearbyAnchor anchorType,
+  }) async {
+    NearbyCategory? chosen;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) => StatefulBuilder(
+        builder: (
+          BuildContext _,
+          void Function(void Function()) setSheetState,
+        ) {
+          return NearbyCategoryPickerSheet(
+            title: 'Nearby places to $title',
+            isLoading: chosen != null,
+            onCategorySelected: (NearbyCategory category) async {
+              if (chosen != null) {
+                return;
+              }
+              chosen = category;
+              setSheetState(() {});
+              final List<NearbyPlace>? places = await _fetchNearbyForAnchor(
+                category: category,
+                anchor: anchor,
+                anchorType: anchorType,
+              );
+              if (!sheetContext.mounted) {
+                return;
+              }
+              // The picker is still the top route here; close it before
+              // the results sheet appears.
+              Navigator.of(sheetContext).pop();
+              if (places == null || !mounted) {
+                return;
+              }
+              _mapController.move(anchor, 15.2);
+              await _showNearbyResultsSheet(category, places);
+            },
+          );
+        },
+      ),
+    );
   }
 
   void _clearRoute() {
@@ -711,8 +796,6 @@ class _HomeScreenState extends State<HomeScreen> {
         showSafetyZones: _showSafetyZones,
         routePolylines: _routePolylines,
         markers: _markers,
-        nearbyCategory: _nearbyCategory,
-        isLoadingNearbyPlaces: _isLoadingNearbyPlaces,
         destinationLabel: _destinationLabel,
         isLoadingRoute: _isLoadingRoute,
         isLoadingLocation: _isLoadingLocation,
@@ -763,7 +846,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onSearchTap: () {
           unawaited(_openDestinationSearch(initialQuery: _destinationLabel));
         },
-        onNearbyCategory: _loadNearbyPlaces,
         onClearRoute: _destinationLabel == null || _isLoadingRoute
             ? null
             : _clearRoute,
@@ -795,7 +877,37 @@ class _HomeScreenState extends State<HomeScreen> {
             _isNavigationCardExpanded = isExpanded;
           });
         },
+        startNearbyLabel: _startNearbyBadgeLabel == null
+            ? null
+            : 'Nearby: $_startNearbyBadgeLabel',
+        endNearbyLabel: _endNearbyBadgeLabel == null
+            ? null
+            : 'Nearby: $_endNearbyBadgeLabel',
+        onStartNearby: () {
+          unawaited(
+            _openNearbyPicker(
+              title: _startNearbyBadgeLabel ?? 'your start point',
+              anchor: _planningStart,
+              anchorType: NearbyAnchor.routeStart,
+            ),
+          );
+        },
+        onEndNearby: () {
+          final LatLng? anchor = _destinationAnchorPoint;
+          if (anchor == null) {
+            return;
+          }
+          unawaited(
+            _openNearbyPicker(
+              title: _endNearbyBadgeLabel ?? 'your destination',
+              anchor: anchor,
+              anchorType: NearbyAnchor.routeEnd,
+            ),
+          );
+        },
       ),
     );
   }
 }
+
+
