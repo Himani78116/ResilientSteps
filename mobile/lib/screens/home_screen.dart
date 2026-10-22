@@ -406,37 +406,59 @@ class _HomeScreenState extends State<HomeScreen> {
       _nearbyPlaces = <NearbyPlace>[];
     });
 
-    final LatLng? location = await _locationService.getCurrentLocation();
-    if (!mounted) {
-      return;
-    }
-    if (location == null) {
-      setState(() => _isLoadingNearbyPlaces = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Enable location permission and location services to find places near you.',
+    // Anchor the search to the route when one exists. During active
+    // navigation the "start point" is the live fix; while planning it is the
+    // confirmed origin. The destination uses the pinned point (or the end of
+    // the loaded route as a fallback).
+    final ScoredRoute? route = _navController.selectedRoute;
+    final LatLng? routeStart = route != null
+        ? (_navController.navState == NavigationState.active
+              ? _liveUserPoint
+              : _planningStart)
+        : null;
+    final LatLng? routeEnd = _navController.destinationLatLng ??
+        (route != null && route.points.isNotEmpty ? route.points.last : null);
+
+    LatLng? fallbackLocation;
+    final bool hasAnchors = routeStart != null || routeEnd != null;
+    if (!hasAnchors) {
+      fallbackLocation = await _locationService.getCurrentLocation();
+      if (!mounted) {
+        return;
+      }
+      if (fallbackLocation == null) {
+        setState(() => _isLoadingNearbyPlaces = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Enable location permission and location services to find places near you.',
+            ),
           ),
-        ),
-      );
-      return;
+        );
+        return;
+      }
     }
 
     try {
-      final List<NearbyPlace> places = await _nearbyPlacesService.findNearby(
-        latitude: location.latitude,
-        longitude: location.longitude,
-        category: category,
-      );
+      final List<NearbyPlace> places = await _nearbyPlacesService
+          .findNearbyForAnchors(
+            category: category,
+            start: routeStart ?? fallbackLocation,
+            end: routeEnd,
+          );
       if (!mounted) {
         return;
       }
       setState(() {
         _nearbyPlaces = places;
         _isLoadingNearbyPlaces = false;
-        _lastKnownUserPoint = location;
+        if (fallbackLocation != null) {
+          _lastKnownUserPoint = fallbackLocation;
+        }
       });
-      _mapController.move(location, 15.2);
+      final LatLng cameraFocus =
+          routeStart ?? routeEnd ?? fallbackLocation ?? _cameraTarget;
+      _mapController.move(cameraFocus, 15.2);
       await showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,

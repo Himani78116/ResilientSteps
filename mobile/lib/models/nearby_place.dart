@@ -21,6 +21,15 @@ enum NearbyCategory {
   }
 }
 
+enum NearbyAnchor {
+  routeStart('Near your start point'),
+  routeEnd('Near your destination');
+
+  const NearbyAnchor(this.label);
+
+  final String label;
+}
+
 class NearbyPlace {
   const NearbyPlace({
     required this.id,
@@ -29,6 +38,7 @@ class NearbyPlace {
     required this.latitude,
     required this.longitude,
     required this.distanceMeters,
+    this.anchor,
     this.address,
   });
 
@@ -38,6 +48,7 @@ class NearbyPlace {
   final double latitude;
   final double longitude;
   final int distanceMeters;
+  final NearbyAnchor? anchor;
   final String? address;
 
   LatLng get point => LatLng(latitude, longitude);
@@ -58,4 +69,15 @@ class NearbyPlace {
       address: json['address']?.toString(),
     );
   }
+
+  NearbyPlace withAnchor(NearbyAnchor anchor) => NearbyPlace(
+    id: id,
+    name: name,
+    category: category,
+    latitude: latitude,
+    longitude: longitude,
+    distanceMeters: distanceMeters,
+    anchor: anchor,
+    address: address,
+  );
 }
