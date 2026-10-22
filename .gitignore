@@ -58,6 +58,7 @@ backend/.env
 logic/output/
 logic/outputs/*.geojson
 logic/outputs/*.graphml
+logic/cache/
 
 ############################
 # Flutter / Dart

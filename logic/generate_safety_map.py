@@ -300,9 +300,8 @@ async def generate_safety_zones(dataset_version: str, engine):
     h3_res = load_city_config().get("h3_resolution", 9)
     for lat, lon, score in rows:
         cell = h3.latlng_to_cell(lat, lon, h3_res)
-        cell_scores[cell] = cell_scores.get(cell, 0) + score
-        cell_counts[cell] = cell_counts.get(cell, 0) + 1
         cell_scores[cell] = cell_scores.get(cell, 0.0) + float(score)
+        cell_counts[cell] = cell_counts.get(cell, 0) + 1
 
     zones_batch = []
     for cell, total_score in cell_scores.items():

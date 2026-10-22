@@ -62,6 +62,7 @@ class NavigationController extends ChangeNotifier {
   static const int _offRouteConfirmationSamples = 3;
   static const Duration _rerouteCooldown = Duration(seconds: 15);
   static const double _cameraHeadingDeadbandDegrees = 1.5;
+  static const double _maxCameraFollowDistanceMeters = 150.0;
 
   static Stream<Position> _defaultPositionStreamFactory() =>
       Geolocator.getPositionStream(
@@ -300,6 +301,28 @@ class NavigationController extends ChangeNotifier {
     _notifyIfNotDisposed();
   }
 
+  LatLng _cameraFollowPoint(LatLng userPoint) {
+    final ScoredRoute? route = _selectedRoute;
+    if (_navState != NavigationState.active ||
+        route == null ||
+        route.points.isEmpty) {
+      return userPoint;
+    }
+
+    final double distanceToRoute = NavigationMath.distanceToPolylineMeters(
+      userPoint,
+      route.points,
+    );
+    if (distanceToRoute <= _maxCameraFollowDistanceMeters) {
+      return userPoint;
+    }
+
+    // The active mode must stay anchored to the planned route. If the live
+    // fix (e.g. an approximate desktop browser location) is far outside the
+    // route, follow the nearest projected point instead of jumping away.
+    return NavigationMath.nearestPointOnPolyline(userPoint, route.points);
+  }
+
   void startRoute() {
     final ScoredRoute? route = _selectedRoute;
     if (route == null) {
@@ -307,9 +330,33 @@ class NavigationController extends ChangeNotifier {
     }
 
     final LatLng? currentPoint = liveUserPoint;
-    final RouteProgressSplit? initialProgress = currentPoint == null
-        ? null
-        : NavigationMath.splitRouteByNearestPoint(currentPoint, route.points);
+    RouteProgressSplit? initialProgress;
+    if (currentPoint != null) {
+      final double deviceDistanceToRoute =
+          NavigationMath.distanceToPolylineMeters(
+            currentPoint,
+            route.points,
+          );
+      if (deviceDistanceToRoute > _maxCameraFollowDistanceMeters) {
+        // The fix is not realistically near the planned walk (approximate
+        // desktop location, VPN, etc). Treat the walk as not yet started
+        // instead of projecting onto a random point of the route.
+        initialProgress = RouteProgressSplit(
+          projectedPoint: route.points.first,
+          segmentIndex: 0,
+          distanceAlongRouteMeters: 0,
+          completedPoints: List<LatLng>.unmodifiable(<LatLng>[
+            route.points.first,
+          ]),
+          remainingPoints: List<LatLng>.unmodifiable(route.points),
+        );
+      } else {
+        initialProgress = NavigationMath.splitRouteByNearestPoint(
+          currentPoint,
+          route.points,
+        );
+      }
+    }
 
     final NavigationState oldState = _navState;
     _navState = NavigationState.active;
@@ -326,7 +373,7 @@ class NavigationController extends ChangeNotifier {
         _deviceHeading ?? _currentHeading,
       );
       _pendingCameraInstruction = NavigationCameraInstruction(
-        userPoint: currentPoint,
+        userPoint: _cameraFollowPoint(currentPoint),
         heading: heading,
         rotateCamera: _headingUpMode && heading != null,
       );
@@ -374,7 +421,7 @@ class NavigationController extends ChangeNotifier {
         _deviceHeading ?? _currentHeading,
       );
       _pendingCameraInstruction = NavigationCameraInstruction(
-        userPoint: userPoint,
+        userPoint: _cameraFollowPoint(userPoint),
         heading: heading,
         rotateCamera: _headingUpMode && heading != null,
       );
@@ -490,7 +537,7 @@ class NavigationController extends ChangeNotifier {
         final LatLng? userPoint = liveUserPoint;
         if (shouldRotateActiveCamera && userPoint != null) {
           _pendingCameraInstruction = NavigationCameraInstruction(
-            userPoint: userPoint,
+            userPoint: _cameraFollowPoint(userPoint),
             heading: smoothedHeading,
             rotateCamera: true,
           );
@@ -534,7 +581,7 @@ class NavigationController extends ChangeNotifier {
 
       final bool rotateCamera = _shouldRotateCamera(position) && hasHeading;
       _pendingCameraInstruction = NavigationCameraInstruction(
-        userPoint: userPoint,
+        userPoint: _cameraFollowPoint(userPoint),
         heading: rotateCamera ? _currentHeading : null,
         rotateCamera: rotateCamera,
       );
@@ -649,6 +696,14 @@ class NavigationController extends ChangeNotifier {
       currentPosition.latitude,
       currentPosition.longitude,
     );
+    if (NavigationMath.distanceToPolylineMeters(
+          currentPoint,
+          route.points,
+        ) >
+        _maxCameraFollowDistanceMeters) {
+      // Keep the last progress instead of snapping to a far-away fix.
+      return;
+    }
     final RouteProgressSplit? projected =
         NavigationMath.splitRouteByNearestPoint(currentPoint, route.points);
     if (projected == null) {
@@ -745,7 +800,7 @@ class NavigationController extends ChangeNotifier {
 
   double _estimateRouteDurationMinutes(ScoredRoute route) =>
       route.durationMinutes ??
-      (route.totalDistanceMeters / 75).clamp(1, 180).toDouble();
+      (route.totalDistanceMeters / 80).clamp(1, 180).toDouble();
 
   void _notifyIfNotDisposed() {
     if (!_disposed) {

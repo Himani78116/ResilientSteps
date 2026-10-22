@@ -133,6 +133,34 @@ class NavigationMath {
     return minDistance;
   }
 
+  static LatLng nearestPointOnPolyline(
+    LatLng point,
+    List<LatLng> routePoints,
+  ) {
+    if (routePoints.isEmpty) {
+      return point;
+    }
+
+    if (routePoints.length == 1) {
+      return routePoints.first;
+    }
+
+    double bestDistance = double.infinity;
+    LatLng bestPoint = routePoints.first;
+    for (int index = 0; index < routePoints.length - 1; index++) {
+      final _SegmentProjection projection = _projectOntoSegment(
+        point,
+        routePoints[index],
+        routePoints[index + 1],
+      );
+      if (projection.distanceMeters < bestDistance) {
+        bestDistance = projection.distanceMeters;
+        bestPoint = projection.point;
+      }
+    }
+    return bestPoint;
+  }
+
   static double distanceMeters(LatLng start, LatLng end) =>
       _distance(start, end);
 

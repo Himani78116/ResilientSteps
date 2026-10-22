@@ -54,9 +54,36 @@ void main() {
       final Size emailFieldSize = tester.getSize(
         find.widgetWithText(TextFormField, 'Email address'),
       );
-      // Ensure the field is bounded to the compact container width (<= 440)
-      expect(emailFieldSize.width, lessThanOrEqualTo(440));
+      // Ensure the field is bounded to the desktop container width (<= 540)
+      expect(emailFieldSize.width, lessThanOrEqualTo(540));
       expect(emailFieldSize.height, inInclusiveRange(44.0, 56.0));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fits a short laptop viewport without scrolling to two-pane', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1024, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: LoginScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Two-pane mode shows the brand bullets.
+      expect(
+        find.text('Routes that weigh shade, heat, and incident zones'),
+        findsOneWidget,
+      );
+
+      // The most-bottom element must sit inside the viewport at rest.
+      final Rect signupRect = tester.getRect(find.text('Sign up'));
+      expect(signupRect.bottom, lessThanOrEqualTo(600));
       expect(tester.takeException(), isNull);
     });
   });
@@ -110,8 +137,33 @@ void main() {
       final Size nameFieldSize = tester.getSize(
         find.widgetWithText(TextFormField, 'Display name'),
       );
-      expect(nameFieldSize.width, lessThanOrEqualTo(440));
+      expect(nameFieldSize.width, lessThanOrEqualTo(540));
       expect(nameFieldSize.height, inInclusiveRange(44.0, 56.0));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fits a short laptop viewport without scrolling to two-pane', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(1024, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SignupScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Routes that weigh shade, heat, and incident zones'),
+        findsOneWidget,
+      );
+
+      final Rect signinRect = tester.getRect(find.text('Sign in'));
+      expect(signinRect.bottom, lessThanOrEqualTo(600));
       expect(tester.takeException(), isNull);
     });
   });

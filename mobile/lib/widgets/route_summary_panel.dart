@@ -69,7 +69,10 @@ class RouteSummaryPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              _ScoreChip(score: route!.averageSafetyScore, color: insights.toneColor),
+              _ScoreChip(
+                score: route!.averageSafetyScore,
+                color: insights.toneColor,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -132,6 +135,30 @@ class RouteSummaryPanel extends StatelessWidget {
               ),
             ],
           ),
+          if (insights.comfortLabel != null) ...<Widget>[
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.thermostat_rounded,
+                  size: 16,
+                  color: Color(0xFF2C8C63),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    insights.comfortLabel!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF2C8C63),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           Text(
             insights.advice,
@@ -239,9 +266,9 @@ class _MetricPill extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: const Color(0xFF6A7A76),
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: const Color(0xFF6A7A76)),
           ),
           const SizedBox(height: 2),
           Text(
@@ -267,6 +294,7 @@ class _RouteInsights {
     required this.watchOutLabel,
     required this.advice,
     required this.toneColor,
+    this.comfortLabel,
   });
 
   final String headline;
@@ -275,16 +303,24 @@ class _RouteInsights {
   final String watchOutLabel;
   final String advice;
   final Color toneColor;
+  final String? comfortLabel;
 
   factory _RouteInsights.fromRoute(ScoredRoute route) {
     final double score = route.averageSafetyScore;
     final int riskySegments = route.segments
-        .where((RouteSegmentSafety segment) => _segmentTier(segment) == _Tier.risky)
+        .where(
+          (RouteSegmentSafety segment) => _segmentTier(segment) == _Tier.risky,
+        )
         .length;
     final int cautiousSegments = route.segments
-        .where((RouteSegmentSafety segment) => _segmentTier(segment) == _Tier.cautious)
+        .where(
+          (RouteSegmentSafety segment) =>
+              _segmentTier(segment) == _Tier.cautious,
+        )
         .length;
-    final int etaMinutes = (route.totalDistanceMeters / 75).clamp(1, 180).round();
+    final int etaMinutes = (route.totalDistanceMeters / 75)
+        .clamp(1, 180)
+        .round();
 
     final Color toneColor;
     final String headline;
@@ -312,6 +348,7 @@ class _RouteInsights {
         cautiousSegments: cautiousSegments,
       ),
       toneColor: toneColor,
+      comfortLabel: route.comfortSummary,
     );
   }
 

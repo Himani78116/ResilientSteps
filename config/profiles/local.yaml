@@ -29,8 +29,4 @@ cache:
 
 cors:
   origins:
-    - "http://localhost:3000"
-    - "http://localhost:8080"
-    - "http://127.0.0.1:3000"
-    - "http://127.0.0.1:8080"
-    - "http://localhost:62096"
+    - "*"  # dev profile: flutter run picks a random web port; narrow per-env in prod profiles only

@@ -14,6 +14,11 @@ import 'walksafe_map_view.dart';
 import 'gradient_button.dart';
 import 'route_info_card.dart';
 
+int _routeEtaMinutes(ScoredRoute route) =>
+    route.durationMinutes == null || route.durationMinutes! <= 0
+        ? (route.totalDistanceMeters / 80).clamp(1, 180).round()
+        : route.durationMinutes!.clamp(1, 180).round();
+
 class NavigationCard extends StatefulWidget {
   const NavigationCard({
     super.key,
@@ -43,9 +48,7 @@ class NavigationCard extends StatefulWidget {
 }
 
 class _NavigationCardState extends State<NavigationCard> {
-  bool _cardExpanded = false;
-
-  @override
+  bool _cardExpanded = false;  @override
   void didUpdateWidget(covariant NavigationCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.navState != NavigationState.active &&
@@ -167,14 +170,8 @@ class _NavigationCardState extends State<NavigationCard> {
         ? '${distKm.toStringAsFixed(1)} km'
         : '${route.totalDistanceMeters.round()} m';
 
-    // Derive shade from average lighting level (0–1 → %)
-    final double avgShade = route.segments.isEmpty
-        ? 0
-        : route.segments
-                .map((s) => s.lightingLevel)
-                .reduce((a, b) => a + b) /
-            route.segments.length;
-    final int shadePct = (avgShade * 100).round().clamp(0, 100);
+    // Real tree-canopy shade from the backend (null when no shade data).
+    final String shadeLabel = shadeLabelFor(route);
 
     // ETA clock string
     final DateTime etaTime = DateTime.now().add(Duration(minutes: etaMinutes));
@@ -249,27 +246,30 @@ class _NavigationCardState extends State<NavigationCard> {
                                     ),
                               ),
                               const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
+                              if (route.comfortLevel == 'comfortable')
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFDCF5E8),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    route.comfortScore != null
+                                        ? 'CLIMATE SAFE ${route.comfortScore!.round()}%'
+                                        : 'CLIMATE SAFE',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: const Color(0xFF1B6B3A),
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.4,
+                                        ),
+                                  ),
                                 ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFDCF5E8),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'CLIMATE SAFE',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .labelSmall
-                                      ?.copyWith(
-                                        color: const Color(0xFF1B6B3A),
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: 0.4,
-                                      ),
-                                ),
-                              ),
                             ],
                           ),
                           const SizedBox(height: 3),
@@ -301,20 +301,20 @@ class _NavigationCardState extends State<NavigationCard> {
                   Expanded(
                     child: _NavMetricCard(
                       label: 'Shade',
-                      value: '$shadePct%',
+                      value: shadeLabel,
                       sublabel: 'Tree canopy',
                       labelColor: const Color(0xFF1B6B3A),
                       backgroundColor: const Color(0xFFE8F5EE),
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: _NavMetricCard(
                       label: 'Heat Index',
-                      value: 'Moderate',
-                      sublabel: 'Shade-aware route',
-                      labelColor: Color(0xFFC05E0A),
-                      backgroundColor: Color(0xFFFFF8E1),
+                      value: route.heatIndexLabel ?? '—',
+                      sublabel: 'Feels-like & UV',
+                      labelColor: const Color(0xFFC05E0A),
+                      backgroundColor: const Color(0xFFFFF8E1),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -338,12 +338,15 @@ class _NavigationCardState extends State<NavigationCard> {
                     selected: true,
                     onTap: () {},
                   ),
-                  const SizedBox(width: 10),
-                  _RouteChip(
-                    label: 'Fastest  •  ${(etaMinutes * 0.85).round()} min',
-                    selected: false,
-                    onTap: () {},
-                  ),
+                  if (route.durationMinutes != null) ...<Widget>[
+                    const SizedBox(width: 10),
+                    _RouteChip(
+                      label:
+                          'Fastest  •  ${route.durationMinutes!.round()} min',
+                      selected: false,
+                      onTap: () {},
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -456,6 +459,28 @@ class _NavigationCardState extends State<NavigationCard> {
                   : FontWeight.w600,
             ),
           ),
+          if (route.comfortSummary != null) ...<Widget>[
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.thermostat_rounded,
+                  size: 18,
+                  color: Color(0xFF2C8C63),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    route.comfortSummary!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF2C8C63),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 22),
           GradientButton(
             label: 'STOP NAVIGATION',
@@ -543,9 +568,6 @@ class _NavigationCardState extends State<NavigationCard> {
       ),
     );
   }
-
-  int _routeEtaMinutes(ScoredRoute route) =>
-      (route.totalDistanceMeters / 75).clamp(1, 180).round();
 
   int _routeSafetyPercent(ScoredRoute route) =>
       route.averageSafetyScore.round().clamp(0, 100).toInt();
@@ -648,19 +670,26 @@ class WalkSafeBottomSheet extends StatelessWidget {
     required this.route,
     required this.isLoadingRoute,
     required this.onSearchTap,
-    required this.onFindSafeRoute,
     required this.onClearRoute,
+    required this.originLabel,
+    required this.originLoading,
+    required this.originNeedsConfirm,
+    required this.onOriginConfirm,
+    required this.onChangeOrigin,
   });
 
   final String? destinationLabel;
   final ScoredRoute? route;
   final bool isLoadingRoute;
   final VoidCallback onSearchTap;
-  final VoidCallback onFindSafeRoute;
   final VoidCallback? onClearRoute;
+  final String? originLabel;
+  final bool originLoading;
+  final bool originNeedsConfirm;
+  final VoidCallback onOriginConfirm;
+  final VoidCallback onChangeOrigin;
 
   static const Color _deepGreen = Color(0xFF1B6B3A);
-  static const Color _lightGreen = Color(0xFF2E8B50);
 
   @override
   Widget build(BuildContext context) {
@@ -700,6 +729,14 @@ class WalkSafeBottomSheet extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 18),
+              _OriginConfirmCard(
+                originLabel: originLabel,
+                originLoading: originLoading,
+                originNeedsConfirm: originNeedsConfirm,
+                onOriginConfirm: onOriginConfirm,
+                onChangeOrigin: onChangeOrigin,
+              ),
+              const SizedBox(height: 12),
               // Search field
               GestureDetector(
                 onTap: onSearchTap,
@@ -763,66 +800,162 @@ class WalkSafeBottomSheet extends StatelessWidget {
                   destinationLabel: destinationLabel!,
                 ),
               ],
-              // Weather / heat banner
+              // Weather / heat banner (live data when the backend returned
+              // heat; hidden entirely when no heat data is available).
               const SizedBox(height: 12),
-              const _WeatherBanner(),
-              const SizedBox(height: 18),
-              // Find Safe Route button
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: <Color>[_deepGreen, _lightGreen],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    borderRadius: BorderRadius.circular(27),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: _deepGreen.withValues(alpha: 0.30),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      onTap: hasDestination && !isLoadingRoute
-                          ? onFindSafeRoute
-                          : null,
-                      borderRadius: BorderRadius.circular(27),
-                      splashColor: Colors.white.withValues(alpha: 0.12),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Find Safe Route',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              _WeatherBanner(route: route),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Google-Maps-style origin confirmation: shows the reverse-geocoded place for
+/// the live GPS fix and lets the user accept it or type the real start.
+class _OriginConfirmCard extends StatelessWidget {
+  const _OriginConfirmCard({
+    required this.originLabel,
+    required this.originLoading,
+    required this.originNeedsConfirm,
+    required this.onOriginConfirm,
+    required this.onChangeOrigin,
+  });
+
+  final String? originLabel;
+  final bool originLoading;
+  final bool originNeedsConfirm;
+  final VoidCallback onOriginConfirm;
+  final VoidCallback onChangeOrigin;
+
+  static const Color _deepGreen = Color(0xFF1B6B3A);
+
+  bool get _visible => originLoading || originNeedsConfirm || (originLabel != null);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_visible) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5EE),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.my_location_rounded,
+              size: 20,
+              color: _deepGreen,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  'Starting point',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: _deepGreen,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  originLoading
+                      ? 'Finding your location…'
+                      : originLabel != null
+                      ? (originNeedsConfirm
+                            ? 'Are you at $originLabel?'
+                            : 'From: $originLabel')
+                      : 'Couldn\u2019t name your area. Add your start.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF16312D),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (originLoading)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2.2, color: _deepGreen),
+            )
+          else if (originNeedsConfirm && originLabel != null) ...<Widget>[
+            TextButton(
+              onPressed: onOriginConfirm,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Yes',
+                style: TextStyle(
+                  color: _deepGreen,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: onChangeOrigin,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'No',
+                style: TextStyle(
+                  color: Color(0xFF5E6D80),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ] else
+            TextButton(
+              onPressed: onChangeOrigin,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(Icons.edit_rounded, size: 14, color: _deepGreen),
+                  const SizedBox(width: 4),
+                  Text(
+                    originNeedsConfirm ? 'Add start' : 'Change',
+                    style: const TextStyle(
+                      color: _deepGreen,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -842,20 +975,21 @@ class _DestinationResultCard extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     String? subtitle;
     if (route != null) {
-      final int etaMin = (route!.totalDistanceMeters / 75).clamp(1, 180).round();
+      final int etaMin = _routeEtaMinutes(route!);
       final double distKm = route!.totalDistanceMeters / 1000;
       final String distLabel = distKm >= 1
           ? '${distKm.toStringAsFixed(1)} km'
           : '${route!.totalDistanceMeters.round()} m';
-      // Shade derived from average lighting level (0-1 → %)
-      final double avgShade = route!.segments.isEmpty
-          ? 0
-          : route!.segments
-                  .map((s) => s.lightingLevel)
-                  .reduce((a, b) => a + b) /
-              route!.segments.length;
-      final int shadePct = (avgShade * 100).round().clamp(0, 100);
-      subtitle = '$etaMin min  •  $distLabel ($shadePct% tree shade)';
+      // Real tree-canopy shade; the shade clause is dropped when the backend
+      // returned no shade scores so we never show a lighting-derived fake.
+      final String shadeLabel = shadeLabelFor(route);
+      subtitle = shadeLabel == '-'
+          ? '$etaMin min  •  $distLabel'
+          : '$etaMin min  •  $distLabel ($shadeLabel tree shade)';
+      final String? climate = route!.comfortSummary;
+      if (climate != null) {
+        subtitle = '$subtitle — $climate';
+      }
     }
 
     return Container(
@@ -902,31 +1036,43 @@ class _DestinationResultCard extends StatelessWidget {
 }
 
 class _WeatherBanner extends StatelessWidget {
-  const _WeatherBanner();
+  const _WeatherBanner({required this.route});
+
+  final ScoredRoute? route;
 
   @override
   Widget build(BuildContext context) {
-    // Shown when hot-day context is applicable.
-    // In the current app there is no weather API; the banner is static.
+    // Live Open-Meteo heat, surfaced by /route-safe as per-segment
+    // heat_penalty. Hidden completely when the backend has no heat data
+    // (older deployments or a degraded weather lookup) so we never fake a
+    // "hot today" claim.
+    final double? maxHeat = route?.maxHeatPenalty;
+    if (maxHeat == null) {
+      return const SizedBox.shrink();
+    }
+
+    final int heatPct = ((maxHeat / 40) * 100).round().clamp(0, 100);
+    final bool severe = maxHeat >= 20;
+    final String label = route!.heatIndexLabel ?? 'Mild';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E1),
+        color: severe ? const Color(0xFFFEF0EC) : const Color(0xFFFFF8E1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: <Widget>[
-          const Icon(
-            Icons.wb_sunny_outlined,
-            color: Color(0xFFF59E0B),
+          Icon(
+            severe ? Icons.local_fire_department_outlined : Icons.wb_sunny_outlined,
+            color: severe ? const Color(0xFFC75B48) : const Color(0xFFF59E0B),
             size: 18,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Hot conditions today — shade-aware routing enabled',
+              'Heat Index: $label ($heatPct%) — shade-aware routing enabled',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF92400E),
+                color: severe ? const Color(0xFF9A3D2E) : const Color(0xFF92400E),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1172,6 +1318,11 @@ class HomeScreenBody extends StatelessWidget {
     required this.onStopNavigation,
     required this.onDismissArrival,
     required this.onCardExpansionChanged,
+    required this.originLabel,
+    required this.originLoading,
+    required this.originNeedsConfirm,
+    required this.onOriginConfirm,
+    required this.onChangeOrigin,
   });
 
   final MapController mapController;
@@ -1208,6 +1359,11 @@ class HomeScreenBody extends StatelessWidget {
   final VoidCallback onStopNavigation;
   final VoidCallback onDismissArrival;
   final ValueChanged<bool> onCardExpansionChanged;
+  final String? originLabel;
+  final bool originLoading;
+  final bool originNeedsConfirm;
+  final VoidCallback onOriginConfirm;
+  final VoidCallback onChangeOrigin;
 
   @override
   Widget build(BuildContext context) {
@@ -1254,58 +1410,8 @@ class HomeScreenBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                // Top header: WalkSafe logo row (matches reference image)
                 Row(
                   children: <Widget>[
-                    // WalkSafe shield logo area
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.90),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            const Icon(
-                              Icons.shield_rounded,
-                              color: Color(0xFF1B6B3A),
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(
-                                  'WalkSafe',
-                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: const Color(0xFF0E1B2A),
-                                    fontWeight: FontWeight.w800,
-                                    height: 1.1,
-                                  ),
-                                ),
-                                Text(
-                                  'Climate',
-                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                    color: const Color(0xFF1B6B3A),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
                     // Search bar in middle (when route in progress)
                     if (navState != NavigationState.idle) ...<Widget>[
                       Expanded(
@@ -1405,8 +1511,12 @@ class HomeScreenBody extends StatelessWidget {
                     route: route,
                     isLoadingRoute: isLoadingRoute,
                     onSearchTap: onSearchTap,
-                    onFindSafeRoute: onStartNavigation,
                     onClearRoute: onClearRoute,
+                    originLabel: originLabel,
+                    originLoading: originLoading,
+                    originNeedsConfirm: originNeedsConfirm,
+                    onOriginConfirm: onOriginConfirm,
+                    onChangeOrigin: onChangeOrigin,
                   )
                 : NavigationCard(
                     key: const ValueKey<String>('nav-card'),

@@ -10,10 +10,15 @@ class DestinationSearchScreen extends StatefulWidget {
     super.key,
     required this.placeSearchService,
     this.initialQuery,
+    this.pickSource = false,
   });
 
   final PlaceSearchService placeSearchService;
   final String? initialQuery;
+
+  /// When true the screen lets the user pick a [starting] point instead of a
+  /// destination (origin confirmation answered "no" on the live location).
+  final bool pickSource;
 
   @override
   State<DestinationSearchScreen> createState() =>
@@ -100,7 +105,7 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Choose destination'),
+        title: Text(widget.pickSource ? 'Choose starting point' : 'Choose destination'),
       ),
       body: SafeArea(
         child: Padding(
@@ -115,7 +120,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
                 onChanged: _onQueryChanged,
                 onSubmitted: (_) => _search(),
                 decoration: InputDecoration(
-                  hintText: 'Search for a road, landmark, or area',
+                  hintText: widget.pickSource
+                      ? 'Where will you start your walk?'
+                      : 'Search for a road, landmark, or area',
                   filled: true,
                   fillColor: Colors.white,
                   prefixIcon: const Icon(Icons.search_rounded),
@@ -145,7 +152,9 @@ class _DestinationSearchScreenState extends State<DestinationSearchScreen> {
               ),
               const SizedBox(height: 14),
               Text(
-                'Popular landmarks work best. You can also go back and tap directly on the map.',
+                widget.pickSource
+                    ? 'Type your exact starting address. You will pick the destination next.'
+                    : 'Popular landmarks work best. You can also go back and tap directly on the map.',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFF5A6C68),
                 ),

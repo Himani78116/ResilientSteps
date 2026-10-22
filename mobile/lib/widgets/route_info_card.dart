@@ -149,19 +149,30 @@ class _ReadyState extends StatelessWidget {
   final VoidCallback? onPrimaryPressed;
   final ThemeData theme;
 
+  String _routeWhyText(_RouteCardSummary summary) {
+    // Real climate reasoning first (comfort score + shade/heat drivers),
+    // then any backend warning, and the heuristic advice only as a last
+    // fallback for routes with no comfort data.
+    final List<String> parts = <String>[
+      if (route.comfortSummary != null) route.comfortSummary!,
+    ];
+    final String? warning = route.warning?.trim();
+    if (warning != null && warning.isNotEmpty) {
+      parts.add(warning);
+    }
+    if (parts.isNotEmpty) {
+      return parts.join(' · ');
+    }
+    return summary.advice;
+  }
+
   @override
   Widget build(BuildContext context) {
     final int safetyScore = route.averageSafetyScore.round().clamp(0, 100);
     final _RouteCardSummary summary = _RouteCardSummary.fromRoute(route);
 
-    // Shade derived from average lighting level (0–1 → %)
-    final double avgShade = route.segments.isEmpty
-        ? 0
-        : route.segments
-                .map((s) => s.lightingLevel)
-                .reduce((a, b) => a + b) /
-            route.segments.length;
-    final int shadePct = (avgShade * 100).round().clamp(0, 100);
+    // Real tree-canopy shade from the backend (null when no shade data).
+    final String shadeLabel = shadeLabelFor(route);
 
     final double distKm = route.totalDistanceMeters / 1000;
     final String distLabel = distKm >= 1
@@ -212,22 +223,26 @@ class _ReadyState extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFFDCF5E8),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                'Recommended\nfor today\'s heat',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: deepGreen,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
+            if (route.heatIndexLabel != null && route.comfortScore != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCF5E8),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Recommended\nfor today\'s heat',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: deepGreen,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 14),
@@ -243,7 +258,7 @@ class _ReadyState extends StatelessWidget {
                 ),
               ),
               TextSpan(
-                text: route.warning ?? summary.advice,
+                text: _routeWhyText(summary),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFF3D4F62),
                   height: 1.4,
@@ -277,15 +292,37 @@ class _ReadyState extends StatelessWidget {
               ),
               const SizedBox(width: 20),
               Text(
-                'Shade: $shadePct%',
+                'Shade: $shadeLabel',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: const Color(0xFF3D4F62),
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (route.heatIndexLabel != null) ...<Widget>[
+                const SizedBox(width: 20),
+                Text(
+                  'Heat: ${route.heatIndexLabel}',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF3D4F62),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
+        if (route.shadeCoveragePct != null) ...<Widget>[
+          const SizedBox(height: 6),
+          Text(
+            'Shade data: ${route.shadeCoveragePct}% of legs '
+            '(${route.shadeMatchedCount} of ${route.shadeLegCount})',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: route.shadeCoveragePct! >= 95
+                  ? const Color(0xFF8A9BB0)
+                  : const Color(0xFFB08030),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         // Route selector chips
         Row(
@@ -295,12 +332,14 @@ class _ReadyState extends StatelessWidget {
               selected: true,
               onTap: () {},
             ),
-            const SizedBox(width: 10),
-            _RouteOptionChip(
-              label: 'Fastest',
-              selected: false,
-              onTap: () {},
-            ),
+            if (route.durationMinutes != null) ...<Widget>[
+              const SizedBox(width: 10),
+              _RouteOptionChip(
+                label: 'Fastest • ${route.durationMinutes!.round()} min',
+                selected: false,
+                onTap: () {},
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 18),
