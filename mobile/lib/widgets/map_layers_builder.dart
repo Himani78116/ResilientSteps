@@ -8,6 +8,7 @@ import '../controllers/navigation_controller.dart';
 import '../models/route_segment_safety.dart';
 import '../models/scored_route.dart';
 import '../services/navigation_math.dart';
+import '../models/nearby_place.dart';
 
 class MapLayersBuilder {
   MapLayersBuilder._();
@@ -21,11 +22,7 @@ class MapLayersBuilder {
     BorderSide(color: Colors.white, width: 4),
   );
   static const List<BoxShadow> _userMarkerShadows = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x422E7CF6),
-      blurRadius: 20,
-      offset: Offset(0, 10),
-    ),
+    BoxShadow(color: Color(0x422E7CF6), blurRadius: 20, offset: Offset(0, 10)),
   ];
   static const BoxDecoration _destinationMarkerDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -157,6 +154,8 @@ class MapLayersBuilder {
     required String destinationLabel,
     required double heading,
     required double zoom,
+    LatLng? origin,
+    String? originLabel,
   }) {
     final double userMarkerDiameter = _userMarkerDiameterForZoom(zoom);
     final double userMarkerFrame = _userMarkerFrameForZoom(zoom);
@@ -213,7 +212,110 @@ class MapLayersBuilder {
       );
     }
 
+    // Route-start pill: floats just above the origin point so the user can
+    // see where the walk begins even while their live blue dot is elsewhere
+    // (typed origin) or overlapping it.
+    if (origin != null) {
+      markers.add(
+        Marker(
+          point: origin,
+          width: 104,
+          height: 64,
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Tooltip(
+              message: originLabel ?? 'Route start',
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF30C56A), width: 3),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Icon(
+                        Icons.flag_rounded,
+                        size: 16,
+                        color: Color(0xFF1B6B3A),
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        'Start',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1B6B3A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return markers;
+  }
+
+  static List<Marker> buildNearbyMarkers(List<NearbyPlace> places) {
+    return places
+        .map(
+          (NearbyPlace place) => Marker(
+            point: place.point,
+            width: 48,
+            height: 58,
+            child: Tooltip(
+              message: place.name,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFF0F6B63), width: 3),
+                  boxShadow: const <BoxShadow>[
+                    BoxShadow(color: Color(0x33000000), blurRadius: 8),
+                  ],
+                ),
+                child: Icon(
+                  _nearbyIcon(place.category),
+                  color: const Color(0xFF0F6B63),
+                  size: 24,
+                ),
+              ),
+            ),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  static IconData _nearbyIcon(NearbyCategory category) {
+    switch (category) {
+      case NearbyCategory.all:
+        return Icons.near_me_rounded;
+      case NearbyCategory.hospital:
+        return Icons.local_hospital_rounded;
+      case NearbyCategory.police:
+        return Icons.local_police_rounded;
+      case NearbyCategory.metro:
+        return Icons.subway_rounded;
+      case NearbyCategory.bus:
+        return Icons.directions_bus_rounded;
+    }
   }
 
   static List<Polyline> _buildActiveRouteSegmentOverlays(

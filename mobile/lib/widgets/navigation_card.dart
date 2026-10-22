@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../controllers/navigation_controller.dart';
 import '../models/scored_route.dart';
+import '../models/nearby_place.dart';
 import '../models/safety_zone.dart';
 import '../screens/report_incident_screen.dart';
 import 'safety_zone_overlay.dart';
@@ -1193,6 +1194,50 @@ class MapToggleChip extends StatelessWidget {
   }
 }
 
+class NearbyCategoryChip extends StatelessWidget {
+  const NearbyCategoryChip({
+    super.key,
+    required this.category,
+    required this.isSelected,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final NearbyCategory category;
+  final bool isSelected;
+  final bool isLoading;
+  final ValueChanged<NearbyCategory> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final IconData icon;
+    switch (category) {
+      case NearbyCategory.all:
+        icon = Icons.near_me_rounded;
+      case NearbyCategory.hospital:
+        icon = Icons.local_hospital_rounded;
+      case NearbyCategory.police:
+        icon = Icons.local_police_rounded;
+      case NearbyCategory.metro:
+        icon = Icons.subway_rounded;
+      case NearbyCategory.bus:
+        icon = Icons.directions_bus_rounded;
+    }
+    return ActionChip(
+      avatar: isLoading
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon, size: 17),
+      label: Text(category.shortLabel),
+      backgroundColor: isSelected ? const Color(0xFFDCEFEA) : Colors.white,
+      onPressed: isLoading ? null : () => onTap(category),
+    );
+  }
+}
+
 class HintChip extends StatelessWidget {
   const HintChip({super.key, required this.icon, required this.label});
 
@@ -1323,6 +1368,10 @@ class HomeScreenBody extends StatelessWidget {
     required this.originNeedsConfirm,
     required this.onOriginConfirm,
     required this.onChangeOrigin,
+    this.startNearbyLabel,
+    this.endNearbyLabel,
+    this.onStartNearby,
+    this.onEndNearby,
   });
 
   final MapController mapController;
@@ -1364,6 +1413,12 @@ class HomeScreenBody extends StatelessWidget {
   final bool originNeedsConfirm;
   final VoidCallback onOriginConfirm;
   final VoidCallback onChangeOrigin;
+  /// Set on the confirmed route start/end to surface a Nearby-place badge
+  /// chip next to the safety-zones toggle.
+  final String? startNearbyLabel;
+  final String? endNearbyLabel;
+  final VoidCallback? onStartNearby;
+  final VoidCallback? onEndNearby;
 
   @override
   Widget build(BuildContext context) {
@@ -1376,9 +1431,7 @@ class HomeScreenBody extends StatelessWidget {
           onMapReady: onMapReady,
           overlayLayers: <Widget>[
             if (showSafetyZones)
-              RepaintBoundary(
-                child: SafetyZoneOverlay(zones: safetyZones),
-              ),
+              RepaintBoundary(child: SafetyZoneOverlay(zones: safetyZones)),
           ],
           routePolylines: routePolylines,
           markers: markers,
@@ -1443,6 +1496,21 @@ class HomeScreenBody extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: <Widget>[
+                    if (startNearbyLabel != null &&
+                        startNearbyLabel!.isNotEmpty)
+                      MapToggleChip(
+                        label: startNearbyLabel!,
+                        icon: Icons.trip_origin_rounded,
+                        isSelected: false,
+                        onTap: onStartNearby ?? () {},
+                      ),
+                    if (endNearbyLabel != null && endNearbyLabel!.isNotEmpty)
+                      MapToggleChip(
+                        label: endNearbyLabel!,
+                        icon: Icons.location_on_rounded,
+                        isSelected: false,
+                        onTap: onEndNearby ?? () {},
+                      ),
                     MapToggleChip(
                       label: 'Show Safety Zones',
                       icon: showSafetyZones
