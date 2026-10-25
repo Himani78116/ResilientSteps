@@ -1,7 +1,10 @@
 """
 Simple in-process rate limiter for ResilientSteps API endpoints.
 
-Uses a token-bucket algorithm keyed by client identifier (IP or user_hash).
+Uses a token-bucket algorithm keyed by the authenticated user, falling back to
+the client address for anonymous requests. Keying on identity keeps clients
+separate when many of them share one address (corporate NAT, a demo audience on
+one wifi, or a tunnel such as ngrok forwarding every request from 127.0.0.1).
 This is a single-process solution — for multi-instance deployments, replace
 with a Redis-backed implementation.
 """
@@ -15,6 +18,9 @@ from typing import Optional
 from fastapi import HTTPException, Request
 
 _TRUSTED_PROXY_DEPTH = int(os.environ.get("TRUSTED_PROXY_DEPTH", "0"))
+
+# Addresses a local tunnel (ngrok, cloudflared, ssh -L) connects from.
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"})
 
 
 @dataclass
@@ -41,7 +47,7 @@ class RateLimiter:
 
     Usage as a dependency:
 
-        report_limiter = RateLimiter(max_requests=5, window_seconds=3600, key="user_hash")
+        report_limiter = RateLimiter(max_requests=5, window_seconds=3600)
 
         @router.post("/report")
         async def submit_report(..., _=Depends(report_limiter)):
@@ -53,12 +59,10 @@ class RateLimiter:
         *,
         max_requests: int,
         window_seconds: int,
-        key: str = "ip",
     ) -> None:
         self._max_requests = max_requests
         self._window_seconds = window_seconds
         self._refill_rate = max_requests / window_seconds
-        self._key_source = key
         self._buckets: dict[str, _TokenBucket] = defaultdict(
             lambda: _TokenBucket(capacity=max_requests, tokens=max_requests)
         )
@@ -66,7 +70,7 @@ class RateLimiter:
         self._cleanup_interval = max(300.0, window_seconds * 2.0)
 
     async def __call__(self, request: Request) -> None:
-        client_key = self._extract_key(request)
+        client_key = self._client_key(request)
         self._maybe_cleanup()
 
         bucket = self._buckets[client_key]
@@ -79,20 +83,41 @@ class RateLimiter:
                 ),
             )
 
-    def _extract_key(self, request: Request) -> str:
-        if self._key_source == "user_hash":
-            return self._client_ip(request)
+    def _client_key(self, request: Request) -> str:
+        """Bucket per user when the request is authenticated, else per address.
 
-        return self._client_ip(request)
+        user_id is set by the auth dependencies; those are resolved before the
+        limiter on every route that uses both.
+        """
+        user_id = getattr(request.state, "user_id", None)
+        if isinstance(user_id, str) and user_id:
+            return f"user:{user_id}"
+        return f"ip:{self._client_ip(request)}"
 
     def _client_ip(self, request: Request) -> str:
         forwarded = request.headers.get("x-forwarded-for")
-        if forwarded and _TRUSTED_PROXY_DEPTH > 0:
-            parts = [part.strip() for part in forwarded.split(",")]
-            index = max(0, len(parts) - _TRUSTED_PROXY_DEPTH)
-            return parts[index]
+        parts = (
+            [part.strip() for part in forwarded.split(",") if part.strip()]
+            if forwarded
+            else []
+        )
         client = request.client
-        return client.host if client else "unknown"
+        peer = client.host if client else None
+
+        if parts:
+            if _TRUSTED_PROXY_DEPTH > 0 and len(parts) >= _TRUSTED_PROXY_DEPTH:
+                # Each trusted proxy appends the address it received from, so the
+                # outermost one is at len - depth. Entries left of it are supplied
+                # by the caller and cannot be trusted.
+                return parts[len(parts) - _TRUSTED_PROXY_DEPTH]
+            if peer in _LOOPBACK_HOSTS:
+                # A local tunnel hands us the request from loopback and appends
+                # the real client address last, where a spoofed leading entry
+                # cannot displace it. Keying on the peer here would put every
+                # tunnelled user in one bucket.
+                return parts[-1]
+
+        return peer or "unknown"
 
     def _maybe_cleanup(self) -> None:
         now = time.monotonic()
@@ -111,6 +136,9 @@ class RateLimiter:
 
 
 # Pre-configured limiters for different endpoint groups.
-report_rate_limiter = RateLimiter(max_requests=5, window_seconds=3600, key="ip")
-route_rate_limiter = RateLimiter(max_requests=60, window_seconds=60, key="ip")
-emergency_rate_limiter = RateLimiter(max_requests=3, window_seconds=600, key="ip")
+report_rate_limiter = RateLimiter(max_requests=5, window_seconds=3600)
+route_rate_limiter = RateLimiter(max_requests=60, window_seconds=60)
+emergency_rate_limiter = RateLimiter(max_requests=3, window_seconds=600)
+# /nearby-places fans out to Overpass (and Nominatim fallback): keep it strict so
+# a client cannot burn the shared public-service quota.
+nearby_rate_limiter = RateLimiter(max_requests=20, window_seconds=60)

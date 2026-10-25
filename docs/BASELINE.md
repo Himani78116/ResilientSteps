@@ -448,15 +448,16 @@ The backbone of backend performance. A singleton `SafetyDatasetCache` that:
 
 ## 7. Rate Limiting (`app/services/rate_limiter.py`)
 
-In-process token-bucket algorithm keyed by client IP (not user identity).
+In-process token-bucket algorithm keyed by the authenticated user ID (`request.state.user_id`, set by the auth dependencies), falling back to client IP for anonymous requests. Identity keying keeps clients separate when they share one address (NAT, a demo audience on one wifi, a tunnel).
 
 | Limiter | Max Requests | Window | Used By |
 |---------|-------------|--------|---------|
 | `report_rate_limiter` | 5 | 1 hour | `POST /reports` |
 | `route_rate_limiter` | 60 | 1 minute | `GET /route`, `POST /route/risk`, `GET /route-safe` |
 | `emergency_rate_limiter` | 3 | 10 minutes | `POST /reports/emergency` |
+| `nearby_rate_limiter` | 20 | 1 minute | `GET /nearby-places` (fans out to Overpass / Nominatim) |
 
-**Proxy awareness**: `TRUSTED_PROXY_DEPTH` env var (default 0). When >0, uses the Nth-from-last `X-Forwarded-For` entry. When 0, uses `request.client.host` directly.
+**Proxy awareness**: `TRUSTED_PROXY_DEPTH` env var (default 0) is the number of proxies you control in front of the API. When >0 and the `X-Forwarded-For` chain is at least that long, the entry appended by the outermost trusted proxy (`len - depth`) is used; entries left of it are caller-supplied and ignored. When the chain is shorter than the configured depth the header is not trusted. With the default of 0, a loopback peer (ngrok, cloudflared, a proxy on the same host) still yields the address the tunnel appended last; any other peer uses `request.client.host` directly.
 
 **Not shared across instances**: Single-process only. README note: "For multi-instance deployment, replace with Redis."
 

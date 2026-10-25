@@ -189,6 +189,8 @@ async def require_auth(request: Request) -> str:
             detail="Token does not contain a valid user identifier.",
         )
 
+    # Published on request.state so the rate limiter can bucket per user.
+    request.state.user_id = str(user_id)
     return str(user_id)
 
 
@@ -207,4 +209,9 @@ async def optional_auth(request: Request) -> str | None:
         return None
 
     user_id = payload.get("sub")
-    return str(user_id) if user_id else None
+    if not user_id:
+        return None
+
+    # Published on request.state so the rate limiter can bucket per user.
+    request.state.user_id = str(user_id)
+    return str(user_id)
