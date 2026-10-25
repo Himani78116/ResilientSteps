@@ -90,8 +90,8 @@ app.include_router(waste_router, prefix="/waste", tags=["Waste Management"])
 # Register Dashboard module router under /dashboard
 app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])
 
-# Mount static web dashboard UI
-static_dir = Path(__file__).parent / "static" / "dashboard"
+# Mount static web dashboard UI (lives in backend/static, next to app/)
+static_dir = Path(__file__).resolve().parent.parent / "static" / "dashboard"
 if static_dir.exists():
     app.mount("/dashboard-ui", StaticFiles(directory=str(static_dir), html=True), name="dashboard-ui")
 
