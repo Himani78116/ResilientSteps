@@ -1,6 +1,18 @@
 let dashboardMap = null;
 let markerLayerGroup = null;
 
+// Report fields are user-submitted, so escape them before they reach any HTML
+// sink. dashboard.js (loaded after this file) reuses this single definition.
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[ch]));
+}
+
 function initDashboardMap(containerId) {
   if (dashboardMap) return dashboardMap;
 
@@ -51,11 +63,11 @@ function renderMarkersOnMap(reports) {
       });
 
       marker.bindPopup(`
-        <strong>${r.category || 'Incident'}</strong><br/>
-        Type: ${r.report_type || 'safety'}<br/>
-        Severity: ${r.severity || 3}<br/>
-        Status: ${r.status || 'pending'}<br/>
-        <small>${r.description || ''}</small>
+        <strong>${escapeHtml(r.category || 'Incident')}</strong><br/>
+        Type: ${escapeHtml(r.report_type || 'safety')}<br/>
+        Severity: ${escapeHtml(r.severity || 3)}<br/>
+        Status: ${escapeHtml(r.status || 'pending')}<br/>
+        <small>${escapeHtml(r.description || '')}</small>
       `);
 
       markerLayerGroup.addLayer(marker);

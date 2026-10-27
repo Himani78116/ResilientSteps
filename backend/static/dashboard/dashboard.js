@@ -6,22 +6,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const loadReportsBtn = document.getElementById('loadReportsBtn');
   const refreshViewBtn = document.getElementById('refreshViewBtn');
 
-  // Restore saved key
-  const savedKey = localStorage.getItem('cityos_admin_key') || 'secret';
-  adminKeyInput.value = savedKey;
+  // Restore saved key — never fall back to a default, the operator must paste one.
+  adminKeyInput.value = localStorage.getItem('cityos_admin_key') || '';
 
   saveKeyBtn.addEventListener('click', () => {
-    localStorage.setItem('cityos_admin_key', adminKeyInput.value.trim());
+    if (!adminKey()) {
+      alert('Enter your admin key before saving.');
+      return;
+    }
+    localStorage.setItem('cityos_admin_key', adminKey());
     alert('Admin key saved.');
     loadDashboardData();
   });
+
+  function adminKey() {
+    return adminKeyInput.value.trim();
+  }
+
+  // Report fields are user-submitted: escape them before injecting into HTML.
+  // escapeHtml lives in map.js so the map popups and this table share one
+  // implementation (map.js is loaded first by index.html).
 
   // Init map
   initDashboardMap('map');
 
   function getHeaders() {
     return {
-      'X-Admin-Key': adminKeyInput.value.trim() || 'secret',
+      'X-Admin-Key': adminKey(),
       'Content-Type': 'application/json'
     };
   }
@@ -77,13 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
       tbody.innerHTML = reports.map(r => `
         <tr>
           <td>${r.id}</td>
-          <td><span class="badge badge-${r.report_type || 'safety'}">${r.report_type || 'safety'}</span></td>
-          <td><strong>${r.category || ''}</strong></td>
-          <td>${r.description || 'N/A'}</td>
+          <td><span class="badge badge-${escapeHtml(r.report_type || 'safety')}">${escapeHtml(r.report_type || 'safety')}</span></td>
+          <td><strong>${escapeHtml(r.category || '')}</strong></td>
+          <td>${escapeHtml(r.description || 'N/A')}</td>
           <td>${r.latitude ? r.latitude.toFixed(4) : ''}, ${r.longitude ? r.longitude.toFixed(4) : ''}</td>
           <td>${r.severity || 3}</td>
           <td>${r.submitted_at ? new Date(r.submitted_at).toLocaleString() : ''}</td>
-          <td>${r.status}</td>
+          <td>${escapeHtml(r.status)}</td>
           <td>
             ${r.status === 'pending' ? `
               <button class="action-btn-sm btn-verify" onclick="moderateReport(${r.id}, 'verify')">Verify</button>
@@ -132,6 +143,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadDashboardData() {
+    if (!adminKey()) {
+      document.getElementById('reportsTableBody').innerHTML =
+        '<tr><td colspan="9" class="text-center text-danger">Paste your admin key above to load reports.</td></tr>';
+      return;
+    }
     loadDashboardSummary();
     loadReportsTable();
   }

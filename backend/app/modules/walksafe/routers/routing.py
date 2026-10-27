@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.auth_middleware import optional_auth
-from app.core.rate_limiter import route_rate_limiter
+from app.core.rate_limiter import nearby_rate_limiter, route_rate_limiter
 from app.modules.walksafe.services.risk_engine import PREFER_OPTIONS, score_route
 from app.modules.walksafe.services.routing_service import get_safe_route
 from app.modules.walksafe.services.safety_zone_service import (
@@ -91,6 +91,7 @@ async def nearby_places(
     category: str,
     radius_m: int = 3000,
     _user: str | None = Depends(optional_auth),
+    _rate: None = Depends(nearby_rate_limiter),
 ):
     if not -90 <= lat <= 90 or not -180 <= lon <= 180:
         raise HTTPException(status_code=422, detail="Invalid coordinates.")

@@ -17,6 +17,7 @@ import random
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 # Add backend directory to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
@@ -30,7 +31,42 @@ env_path = Path(__file__).resolve().parent.parent / "backend" / ".env"
 if env_path.exists():
     load_dotenv(env_path)
 
-DB_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://cityos:cityos_secret@localhost:5432/cityos")
+
+def _database_url() -> str:
+    """Return DATABASE_URL or fail loudly — there is no local fallback."""
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if not url:
+        raise SystemExit(
+            "DATABASE_URL is not set. Export it or add it to backend/.env "
+            "before running the demo seeder."
+        )
+    return url
+
+
+def _mask_db_url(url: str) -> str:
+    """Hide credentials so they never reach logs or terminal scrollback.
+
+    Parsing is deliberately defensive: if urlsplit cannot see the credentials
+    (a password containing an unencoded ``@`` or ``/`` is not a valid URL),
+    everything between the scheme and the last ``@`` is masked anyway rather
+    than risk printing the secret.
+    """
+    parts = urlsplit(url)
+    if "@" in parts.netloc:
+        userinfo, _, host = parts.netloc.rpartition("@")
+        user, colon, _password = userinfo.partition(":")
+        masked = f"{user}:***" if colon else "***"
+        return urlunsplit(parts._replace(netloc=f"{masked}@{host}"))
+
+    if "@" in url:
+        scheme, separator, remainder = url.partition("://")
+        userinfo, _, host = remainder.rpartition("@")
+        user, colon, _password = userinfo.partition(":")
+        if separator and colon:
+            return f"{scheme}{separator}{user}:***@{host}"
+
+    return url
+
 
 # Center coordinates for Pune
 PUNE_LAT = 18.5204
@@ -52,8 +88,9 @@ async def seed_demo_data(
     num_infra: int = 50,
     num_waste: int = 50,
 ):
-    print(f"Connecting to DB at: {DB_URL}")
-    engine = create_async_engine(DB_URL)
+    db_url = _database_url()
+    print(f"Connecting to database: {_mask_db_url(db_url)}")
+    engine = create_async_engine(db_url)
 
     async with engine.begin() as conn:
         print("Ensuring categories table exists & is populated...")
