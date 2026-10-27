@@ -42,6 +42,14 @@ class AuthService {
     }
   }
 
+  String get email {
+    final User? user = currentUser;
+    if (user == null) {
+      return '';
+    }
+    return user.email ?? '';
+  }
+
   String get displayName {
     final User? user = currentUser;
     if (user == null) {
