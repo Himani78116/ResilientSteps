@@ -110,6 +110,7 @@ class _IncidentModalState extends State<IncidentModal> {
   final TextEditingController _descriptionController = TextEditingController();
 
   String _selectedIncidentType = _incidentTypes.first.value;
+  int _severity = 3;
   bool _submitting = false;
   String? _errorMessage;
 
@@ -132,7 +133,7 @@ class _IncidentModalState extends State<IncidentModal> {
       _errorMessage = null;
     });
 
-    final int severity = _severityForType(_selectedIncidentType);
+    final int severity = _severity;
     final String userHash =
         'mobile-${DateTime.now().millisecondsSinceEpoch.toString()}';
 
@@ -237,14 +238,6 @@ class _IncidentModalState extends State<IncidentModal> {
     );
   }
 
-  int _severityForType(String incidentType) {
-    final String normalized = incidentType.toLowerCase();
-    if (normalized.contains('suspicious')) {
-      return 4;
-    }
-    return 3;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isSosMode) {
@@ -297,6 +290,29 @@ class _IncidentModalState extends State<IncidentModal> {
                     );
                   })
                   .toList(growable: false),
+            ),
+            const SizedBox(height: 28),
+            Text(
+              'Severity',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF1C2738),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: List<Widget>.generate(5, (int index) {
+                final int value = index + 1;
+                return _CategoryPill(
+                  label: '$value · ${severityWord(value)}',
+                  isSelected: _severity == value,
+                  onTap: () {
+                    setState(() => _severity = value);
+                  },
+                );
+              }),
             ),
             const SizedBox(height: 28),
             Text(
@@ -662,4 +678,15 @@ class _IncidentCategory {
 
   final String label;
   final String value;
+}
+
+// R-079 severity anchors shared by the chip labels.
+String severityWord(int severity) {
+  return switch (severity) {
+    1 => 'Minor',
+    2 => 'Low',
+    3 => 'Moderate',
+    4 => 'Serious',
+    _ => 'Critical',
+  };
 }

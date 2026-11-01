@@ -21,6 +21,71 @@ MAX_SHADE_OBSERVATION_PENALTY = 25.0
 COOL_SPOT_BONUS = 5.0
 MAX_COOL_SPOT_BONUS = 10.0
 
+# Canonical codes are the truth; legacy label aliases stay for rows written
+# before normalization.
+SAFETY_CATEGORY_CODES = (
+    "stalking",
+    "harassment",
+    "suspicious_activity",
+    "unsafe_infrastructure",
+    "poor_lighting",
+)
+
+_LABEL_TO_CODE = {
+    "stalking": "stalking",
+    "harassment": "harassment",
+    "suspicious activity": "suspicious_activity",
+    "unsafe infrastructure": "unsafe_infrastructure",
+    "poor lighting": "poor_lighting",
+    "no shade / heavy sun": "no_shade",
+    "shade blocked (overgrown / construction)": "shade_obstruction",
+    "heat stress / too hot to walk": "heat_stress",
+    "cool shaded spot / water available": "cool_spot",
+    "no shade": "no_shade",
+    "shade_blocked": "shade_obstruction",
+    "heat_stress / too hot to walk": "heat_stress",
+    "cool_spot": "cool_spot",
+}
+
+# category weights keyed on canonical codes (legacy labels keep identical
+# values so pre-normalization rows never lose weight).
+_INCIDENT_CATEGORY_WEIGHTS = {
+    "stalking": 1.0,
+    "harassment": 0.9,
+    "suspicious_activity": 0.8,
+    "unsafe_infrastructure": 0.7,
+    "poor_lighting": 0.6,
+}
+
+
+def _category_weight_sql() -> str:
+    legacy_lines = {
+        "Stalking": 1.0,
+        "Harassment": 0.9,
+        "Suspicious Activity": 0.8,
+        "Unsafe infrastructure": 0.7,
+        "Poor lighting": 0.6,
+    }
+    lines = [
+        f"WHEN '{code}' THEN {weight}"
+        for code, weight in _INCIDENT_CATEGORY_WEIGHTS.items()
+    ]
+    lines += [
+        f"WHEN '{label}' THEN {weight}" for label, weight in legacy_lines.items()
+    ]
+    lines += [
+        "WHEN 'no_shade' THEN 0.0",
+        "WHEN 'No shade / heavy sun' THEN 0.0",
+        "WHEN 'shade_obstruction' THEN 0.0",
+        "WHEN 'Shade blocked (overgrown / construction)' THEN 0.0",
+        "WHEN 'heat_stress' THEN 0.0",
+        "WHEN 'Heat stress / too hot to walk' THEN 0.0",
+        "WHEN 'cool_spot' THEN 0.0",
+        "WHEN 'Cool shaded spot / water available' THEN 0.0",
+        "ELSE 0.65",
+    ]
+    return "\n" + "\n".join(lines) + "\n"
+
 
 class ReportingService:
     def __init__(self) -> None:
@@ -60,6 +125,15 @@ class ReportingService:
             normalized_contacts.append({"name": name, "phone": phone})
         return normalized_contacts
 
+    @staticmethod
+    def normalize_category(category: Any) -> str:
+        """R-065: canonical category codes everywhere (see S-100 D5)."""
+        raw = str(category or "").strip()
+        if not raw:
+            return raw
+        canonical = _LABEL_TO_CODE.get(raw.casefold())
+        return canonical or raw
+
     async def create_report(
         self,
         report: Any,
@@ -70,6 +144,8 @@ class ReportingService:
     ) -> Dict[str, Any]:
         severity_val = getattr(report, "severity", severity)
         report_type_val = getattr(report, "report_type", report_type)
+        category_val = self.normalize_category(getattr(report, "category", ""))
+        metadata_val = getattr(report, "metadata", None) or {}
         result = await db.execute(
             text(
                 """
@@ -81,7 +157,8 @@ class ReportingService:
                     status,
                     confidence,
                     report_type,
-                    severity
+                    severity,
+                    metadata
                 )
                 VALUES (
                     :user_hash,
@@ -91,26 +168,106 @@ class ReportingService:
                     'pending',
                     :confidence,
                     :report_type,
-                    :severity
+                    :severity,
+                    CAST(:metadata AS JSONB)
                 )
                 RETURNING id::text AS id, status, confidence, submitted_at
                 """
             ),
             {
                 "user_hash": report.user_hash,
-                "category": report.category,
+                "category": category_val,
                 "description": report.description,
                 "lon": report.lon,
                 "lat": report.lat,
                 "confidence": self.base_confidence,
                 "report_type": report_type_val,
                 "severity": severity_val,
+                "metadata": json.dumps(metadata_val),
             },
         )
         row = result.fetchone()
         if row is None:
             raise RuntimeError("Incident report insert returned no row.")
+        # Commit inside the request, not via get_db teardown: the Nugen
+        # BackgroundTask runs after the response, so a deferred commit makes
+        # its UPDATE race an uncommitted row (E2E-verified bug).
+        await db.commit()
         return dict(row._mapping)
+
+    async def apply_ai_classification(
+        self,
+        *,
+        report_id: str,
+        description: str,
+        provided_category: str,
+        allowed_category_codes: List[str],
+    ) -> Dict[str, Any]:
+        """WP14: classify via Nugen and persist the AI result. Failures degrade
+        to 'unchanged'; the row keeps its insert-time values (S-099/S-103)."""
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.core.nugen_service import nugen_service
+
+            # No text -> nothing to verify: the empty-description round
+            # (report id 20) proved the model otherwise hallucinates details
+            # and self-reports 0.8 as if text existed. Row keeps 0.5.
+            if not (description or "").strip():
+                return {
+                    "report_id": report_id,
+                    "classified": False,
+                    "skipped": "empty_description",
+                }
+
+            classification = await nugen_service.classify_report(
+                description, provided_category, allowed_category_codes
+            )
+            if classification is None:
+                return {"report_id": report_id, "classified": False}
+
+            ai_payload = {
+                "source": "nugen",
+                "model": classification.model_name,
+                "category": classification.category,
+                "severity": classification.severity,
+                "severity_label": classification.severity_label,
+                "confidence": classification.confidence,
+                "reason": classification.reason,
+            }
+            async with AsyncSessionLocal() as session:
+                # asyncpg infers param types by usage: id must be a real
+                # int, not a str wrapped in CAST.
+                # R-079 severity merge: the operator severity is the floor -
+                # the AI may raise it but never lower it.
+                await session.execute(
+                    text(
+                        """
+                        UPDATE incident_reports
+                        SET category = :category,
+                            severity = GREATEST(COALESCE(severity, 3), :severity),
+                            confidence = :confidence,
+                            model_name = :model_name,
+                            model_confidence = :model_confidence,
+                            metadata = COALESCE(metadata, '{}'::jsonb)
+                                || jsonb_build_object('ai', CAST(:ai_payload AS JSONB))
+                        WHERE id = :report_id
+                        """
+                    ),
+                    {
+                        "report_id": int(report_id),
+                        "category": classification.category,
+                        "severity": classification.severity,
+                        "confidence": classification.confidence,
+                        "model_name": classification.model_name,
+                        "model_confidence": classification.confidence,
+                        "ai_payload": json.dumps(ai_payload),
+                    },
+                )
+                await session.commit()
+            return {"report_id": report_id, "classified": True}
+        except Exception as exc:  # degrade always; never surface to submitter
+            LOGGER.warning("Nugen classification follow-up failed softly: %s", exc)
+            return {"report_id": report_id, "classified": False}
 
     async def get_recent_reports(
         self,
@@ -158,8 +315,9 @@ class ReportingService:
         if not road_segment_ids or not dataset_version:
             return {}
 
+        category_weight_sql = _category_weight_sql()
         query = text(
-            """
+            f"""
             WITH route_segments AS (
                 SELECT id, geometry
                 FROM road_segments
@@ -214,20 +372,7 @@ class ReportingService:
                             ELSE 0.3
                         END
                         * CASE category
-                            WHEN 'Stalking' THEN 1.0
-                            WHEN 'Harassment' THEN 0.9
-                            WHEN 'Suspicious Activity' THEN 0.8
-                            WHEN 'Unsafe infrastructure' THEN 0.7
-                            WHEN 'Poor lighting' THEN 0.6
-                            WHEN 'no_shade' THEN 0.0
-                            WHEN 'No shade / heavy sun' THEN 0.0
-                            WHEN 'shade_obstruction' THEN 0.0
-                            WHEN 'Shade blocked (overgrown / construction)' THEN 0.0
-                            WHEN 'heat_stress' THEN 0.0
-                            WHEN 'Heat stress / too hot to walk' THEN 0.0
-                            WHEN 'cool_spot' THEN 0.0
-                            WHEN 'Cool shaded spot / water available' THEN 0.0
-                            ELSE 0.65
+{category_weight_sql}
                         END
                     )::numeric,
                     3
