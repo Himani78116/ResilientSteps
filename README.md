@@ -1,6 +1,6 @@
 <div align="center">
 
-```
+```text
 ╔═══════════════════════════════════════════════════════════════════╗
 ║                     R E S I L I E N T S T E P S                    ║
 ╚═══════════════════════════════════════════════════════════════════╝
@@ -24,9 +24,9 @@
 
 ## What is ResilientSteps?
 
-Most navigation apps optimise for speed. ResilientSteps optimises for **safety**.
+Most navigation apps optimise for speed. ResilientSteps optimises for **safety, shade, heat and community well-being**.
 
-Instead of asking "how do I get there fastest?" it asks "how do I get there most safely?" — routing pedestrians through well-lit streets, footpaths, and residential roads while avoiding high-speed arterials, poorly-lit stretches, and areas with recent incident reports.
+Instead of asking "how do I get there fastest?" it asks "how do I get there most safely?". Routing pedestrians through well-lit streets, footpaths, and residential roads while avoiding high-speed arterials, poorly-lit stretches, and areas with recent incident reports.
 
 Built for Pune, India. Designed for anyone who has ever felt uncertain walking home.
 
@@ -35,6 +35,7 @@ Built for Pune, India. Designed for anyone who has ever felt uncertain walking h
 ## How it works
 
 ```
+
 Your location
       │
       ▼
@@ -96,30 +97,29 @@ Routes minimise total risk across all segments, not just distance.
    (search + reverse geocode, cached and rate-gated client-side). No backend
    proxy involved.
 3. **Incident reporting** — the app `POST /reports` (Supabase JWT) → stored as
-   `pending` in `incident_reports` → an operator verifies/rejects via the
-   admin API using the `X-Admin-Key` header → verified reports influence
-   future route scores (nearest-segment match within 30 m, weighted by
-   confidence/category/status/recency). Nothing touches road segments at
-   moderation time.
-4. **SOS** — the app records `POST /reports/emergency` (GPS location +
-   trusted contacts → `emergency_alerts`) and the **device** sends SMS to
-   trusted contacts on its own. If GPS is unavailable the SOS is blocked.
-5. **Precomputed vs live** — segment scores, zone hexagons and shade scores
-   are precomputed by the `logic/` pipeline into PostGIS; weather heat
-   penalty is fetched live per request (cached 15 min, degrades to 0 on
-   failure); reports/scores interplay is live at scoring time.
+   `pending` in `incident_reports` → an operator verifies/rejects via the admin
+   API using the `X-Admin-Key` header → verified reports influence future route
+   scores (nearest-segment match within 30 m, weighted by confidence/category/status/recency).
+   Nothing touches road segments at moderation time.
+4. **SOS** — the app records `POST /reports/emergency` (GPS location + trusted
+   contacts → `emergency_alerts`) and the **device** sends SMS to trusted
+   contacts on its own. If GPS is unavailable the SOS is blocked.
+5. **Precomputed vs live** — segment scores, zone hexagons and shade scores are
+   precomputed by the `logic/` pipeline into PostGIS; weather heat penalty is
+   fetched live per request (cached 15 min, degrades to 0 on failure);
+   reports/scores interplay is live at scoring time.
 
 ---
 
 ## Features
 
-### 🗺️ Safety-first routing
+### Safety-first routing
 Routes scored segment-by-segment against the weighted safety model — picking routes that avoid high-incident stretches. The safety score for your route is shown before you start walking.
 
-### 🔴 Live danger zone overlay
+### Live danger zone overlay
 H3 hexagon polygons colour-coded green / amber / red based on aggregated street safety scores. Toggleable. Cached offline.
 
-### 📍 Real-time navigation
+### Real-time navigation
 - Live GPS position tracking with map auto-pan
 - Heading-up mode — map rotates to face your direction of travel
 - Route consumption — walked sections fade as you progress
@@ -127,7 +127,7 @@ H3 hexagon polygons colour-coded green / amber / red based on aggregated street 
   roughly 40–80 m depending on GPS fix quality, with a 15 s cooldown)
 - Arrival detection near the destination
 
-### 🚨 SOS alert
+### SOS alert
 One-tap emergency alert. Your phone sends SMS messages to your saved trusted
 contacts **directly from the device** (no backend needed for delivery), records
 your real GPS location and the contact list against the backend
@@ -135,12 +135,42 @@ your real GPS location and the contact list against the backend
 sends a fake location. The backend records the event; it does not deliver
 messages.
 
-### 📋 Incident reporting
+### Incident reporting
 Report poor lighting, suspicious activity, or unsafe infrastructure. Reports enter a moderation queue — they do not affect safety scores until an operator verifies them.
 
-### 🔒 Operator moderation
+### AI-powered incident classification (Nugen)
+Optional backend LLM classifier (Nugen) enriches each submitted report with a
+canonical category code, severity (1–5) and model confidence. It runs after the
+report is persisted — if Nugen is unconfigured or unavailable, the report keeps
+its insert-time values (confidence 0.5) and the pipeline never breaks.
+
+To enable it, add two keys to `backend/.env`:
+
+```env
+# Key: platform.nugen.in -> dashboard -> API keys
+# Model: pick one with inference_ready=true AND alignment_ready=true:
+#   meta-llama/Llama-3.2-3B-Instruct (recommended)
+# Optional override (default: https://api.nugen.in/api/v3/inference)
+# NUGEN_BASE_URL=https://api.nugen.in/api/v3/inference
+NUGEN_API_KEY=your-api-key
+NUGEN_MODEL=meta-llama/Llama-3.2-3B-Instruct
+```
+
+- Set **both** `NUGEN_API_KEY` and `NUGEN_MODEL` for classification to run.
+- Classification stays **OFF** until both are set — everything degrades to the
+  base confidence of 0.5 without them (offline-safe by design).
+- The model must be OpenAI-compatible (Nugen serves SSE/chat-completions) — the
+  recommended first pick is `meta-llama/Llama-3.2-3B-Instruct`.
+- The mobile app is never involved; this is purely a backend enrichment step.
+
+### Operator moderation
 Simple API-based moderation workflow. Verified reports then affect scores
 dynamically (see API reference) — segment data itself is not rewritten.
+
+### ngrok-controlled demo URL (optional)
+`ngrok` exposes the local backend over a permanent HTTPS URL. Point the mobile app
+at that URL so the APK works anywhere — not just on your local network. No public
+IP, no cloud VPS, and no VPN required. Detailed setup is in **Sharing & distribution** below.
 
 ---
 
@@ -158,13 +188,14 @@ dynamically (see API reference) — segment data itself is not rewritten.
 | Street data | OpenStreetMap via OSMnx |
 | Map tiles | Maptiler streets-v2 |
 | Geocoding | Nominatim (called directly by the app) |
-| Tunnel (demo) | ngrok static domain |
+| Demo tunnel | ngrok (optional, for sharing) |
 
 ---
 
 ## Repository layout
 
 ```
+
 ResilientSteps/
 ├── docker-compose.yml            Root stack: valhalla + backend services
 ├── linuxinstructions.md          Linux-specific setup notes
@@ -172,7 +203,7 @@ ResilientSteps/
 ├── config/                       City config (city.yaml: city name, OSM place)
 ├── docs/                         Learning log and project documentation
 ├── scripts/                      Miscellaneous helper scripts
-│
+
 ├── backend/                      FastAPI server
 │   ├── app/
 │   │   ├── core/                 Database, auth middleware, rate limiting
@@ -223,7 +254,7 @@ Before running ResilientSteps locally you need:
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Valhalla)
 - A [Supabase](https://supabase.com) project with PostGIS enabled
 - A [Maptiler](https://www.maptiler.com) free account (for map tiles)
-- [ngrok](https://ngrok.com) free account with a static domain (for sharing the demo)
+- [ngrok](https://ngrok.com) free account with a static domain (for demo sharing)
 
 ---
 
@@ -269,10 +300,10 @@ dart-defines. See `mobile/.env.example` for the same four values as a template.
 
 ## Environment configuration reference
 
-The backend reads `backend/.env` at runtime; the Flutter app receives its
-values **baked in at build time** (dart-defines / `mobile/config/dart_defines.json`).
-Privileged keys (service role, admin key, JWT secret) belong only in the
-backend `.env` — never in dart-defines, never in Git.
+The backend reads `backend/.env` at runtime; the Flutter app receives its values
+baked in at build time (dart-defines / `mobile/config/dart_defines.json`).
+Privileged keys (service role, admin key, JWT secret) belong only in the backend
+`.env` — never in dart-defines, never in Git.
 
 | Variable | Purpose | Required | Belongs in |
 |---|---|---|---|
@@ -296,8 +327,8 @@ backend `.env` — never in dart-defines, never in Git.
 | Physical phone | `http://<your-computer's-LAN-IP>:8000` — phone and computer must be on the same Wi-Fi with the backend started with `--host 0.0.0.0` |
 | Shared demo APK | ngrok HTTPS URL (see below) |
 
-Dart-defines are **frozen into the binary at build time** — commits do not
-update an installed APK; rebuild is required.
+Dart-defines are **frozen into the binary at build time** — commits do not update
+an installed APK; rebuild is required.
 
 ### 2 — Set up the database
 
@@ -311,7 +342,7 @@ cd backend
 python -m venv .venv
 
 # Windows
-.\.venv\Scripts\activate
+.\\.venv\\Scripts\\activate
 
 # macOS / Linux
 source .venv/bin/activate
@@ -341,18 +372,19 @@ curl http://localhost:8002/status
 
 ### 4 — Populate the safety database
 
-Run the ingest pipeline to score every walkable street in Pune and generate H3 safety
-zones. Takes 10–20 minutes on first run. The OSMnx graph is cached locally so
-re-runs are fast.
+Run the ingest pipeline to score every walkable street in Pune and generate H3
+safety zones. Takes 10–20 minutes on first run. The OSMnx graph is cached locally
+so re-runs are fast.
 
 ```bash
 cd logic
 python generate_safety_map.py
 ```
 
-When complete you will see (counts and versions are illustrative — they depend
-on the current OSM data and pipeline run):
-```
+When complete you will see (counts and versions are illustrative — they depend on
+the current OSM data and pipeline run):
+
+```text
 Written 449,342 segments to database.
 Written 1,204 safety zone polygons.
 Done. Dataset version: 20250103-141200 | Time: 847.3s
@@ -375,16 +407,17 @@ python generate_shade_map.py
 ```
 
 When complete you will see (counts again illustrative):
-```
+
+```text
 Updating shade for dataset_version 20250103-141200...
 Done writing 450,000 rows, committing...
 Scored 450,000 segments. Mean shade 1.9 (skipped 1,102 edges without an OSM way id).
 Done. Time: 1234.5s
 ```
 
-> The shade job is **idempotent** — re-running rewrites the same rows and does
-> not re-ingest geometry. Both seeds never overwrite the DB schema and can be
-> re-run safely.
+> The shade job is **idempotent** — re-running rewrites the same rows and does not
+> re-ingest geometry. Both seeds never overwrite the DB schema and can be re-run
+> safely.
 
 ### 6 — Start the backend
 
@@ -394,6 +427,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Verify:
+
 ```bash
 curl http://localhost:8000/
 # Expected: {"message":"ResilientSteps API is running","status":"online"}
@@ -417,8 +451,7 @@ keys; the app asserts on all of them at startup:
 ```
 
 Then run with the override for your target (dart-defines are **baked at build
-time** — after any change, rebuild; APKs do not pick up new values from
-commits):
+time** — after any change, rebuild; APKs do not pick up new values from commits):
 
 ```bash
 cd mobile
@@ -436,59 +469,37 @@ flutter run -d chrome --dart-define-from-file=config/dart_defines.json
 #   --dart-define=API_BASE_URL=http://YOUR-LAN-IP:8000
 ```
 
-> If the backend calls fail silently and the route shows **no shade score and
-> no heat index at all**, check `API_BASE_URL` first — the backend always
-> returns `heat_penalty` (it degrades to `0.0` → "Pleasant" if the weather API
-> is down), so a missing heat index means the app never received the scored
-> payload. Verify with:
+> If the backend calls fail silently and the route shows **no shade score and no
+> heat index at all**, check `API_BASE_URL` first — the backend always returns
+> `heat_penalty` (it degrades to `0.0` → "Pleasant" if the weather API is down),
+> so a missing heat index means the app never received the scored payload.
+> Verify with:
 > `curl "http://API_BASE_URL/route-safe?start_lat=18.5204&start_lon=73.8567&end_lat=18.53&end_lon=73.86"`
-
-## Verification checklist & troubleshooting
-
-After setup, confirm each layer before blaming the next one:
-
-| Check | Command | Success looks like |
-|---|---|---|
-| Database | `alembic upgrade head` in `backend/` (idempotent) | "nothing to update" / migrations applied |
-| Safety data | `SELECT count(*), count(shade_score) FROM road_segments;` in Supabase SQL editor | Both counts > 0 (else re-run steps 4–5) |
-| Safety-zone endpoint non-empty | `curl "http://localhost:8000/safety-zones?min_lat=18.5&max_lat=18.6&min_lon=73.8&max_lon=73.9"\| jq ".features \| length"` (raw curl also fine) | `features` array length > 0 |
-| Valhalla | `curl http://localhost:8002/status` | JSON with `tileset_last_modified` |
-| Backend | `curl http://localhost:8000/ready` | `{"ready":true}` — 503 means the cache was still warming at startup; restart the backend (it warms on boot) |
-| Route scoring | the `/route-safe` probe above | `segments[0].shade_score` and `heat_penalty` present |
-| Mobile config | app starts without assertion errors | dart-defines file has all 4 keys (see step 7) |
-
-### Common failures
-
-| Symptom | Likely cause | Next step |
-|---|---|---|
-| Docker can't start (WSL2) | Docker Desktop not fully booted / WSL2 not enabled | Ensure `wsl --status` works; start Docker Desktop first, then `docker compose up -d valhalla` |
-| Valhalla builds forever | First-run tile download (~500 MB western-India extract) | It can take 10–20+ min; watch the container logs (`docker compose logs -f valhalla`). Rebuild only when `force_rebuild=True` |
-| Backend 500 / DB errors | `.env` missing or `DATABASE_URL` unreachable | `curl http://localhost:8000/ready`; check the pooler/DB URL; wait for startup warmup |
-| Mobile: routes draw but no Safety/Shade/Heat card | `API_BASE_URL` wrong for the target (emulator vs phone vs Chrome — see config table) | Hit `/route-safe` via curl from the same machine; if JSON is fine, it is the baked URL — rebuild with the right override |
-| Port 8000 already in use (Windows, WinError 10013) | A stale uvicorn holds the port | `Get-NetTCPConnection -LocalPort 8000 \| Select OwningProcess`, stop it, restart |
-| Flutter web CORS errors | Dev origins / `CITYOS_PROFILE` config | CORS origins come from `config/` city/profile config (default `*`); check the backend console |
-| Map tiles blank (403) | Wrong `MAPTILER_API_KEY` baked in | Fix `dart_defines.json`, rebuild |
-| Zone hexagons missing | Safety map not run, or wrong mini bbox values | Run `/safety-zones` curl above; if empty, run step 4 |
-| GPS never found (emulator) | Emulator returns heading 0/-1 and may have no fix | Inject a location in emulator controls; test GPS features on a real device |
-| SOS sends nothing | No SMS permission / real SIM limitations | Device SMS needs the Android SMS permission and a working SIM; the backend record confirms the alert was triggered |
 
 ---
 
-## Building a shareable demo APK
+## Sharing & distribution
 
-ResilientSteps uses ngrok to expose the local backend over a permanent HTTPS URL so the APK
-works anywhere — not just on your local network.
+Instead of shipping a local-only APK or provisioning a dedicated server, use
+**ngrok** to expose the local backend through a single HTTPS URL that anyone can
+open on their phone. The APK then works on any device on the internet, and you
+can iterate on the laptop while the tunnel stays up.
 
-### Set up ngrok
+### 1 — Sign up and claim a static domain
 
-1. Sign up at [ngrok.com](https://ngrok.com) (free)
-2. Claim your free static domain at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains)
-3. Install ngrok and authenticate:
-   ```bash
-   ngrok config add-authtoken YOUR_AUTHTOKEN
-   ```
+1.  Create a free account at [ngrok.com](https://ngrok.com).
+2.  Claim a static domain at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains) (free tier allows a handful of domains).
+3.  Install ngrok (brew, winget, or the [downloads page](https://ngrok.com/downloads) for your OS.
 
-### Start the demo stack
+### 2 — Authenticate the CLI
+
+```bash
+ngrok config add-authtoken YOUR_AUTHTOKEN
+```
+
+Obtain the token from [dashboard.ngrok.com/get-started/your-authtoken](https://dashboard.ngrok.com/get-started/your-authtoken).
+
+### 3 — Start the tunnel
 
 Open three terminals:
 
@@ -504,10 +515,13 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ngrok http --domain=your-static-domain.ngrok-free.app 8000
 ```
 
-Verify at `https://your-static-domain.ngrok-free.app/` — you should see the backend
-health response.
+Verify at `https://your-static-domain.ngrok-free.app/` — you should see the
+backend health response.
 
-### Build the APK
+### 4 — Bake the ngrok URL into the APK
+
+`dart-defines` are frozen at build time, so the mobile build must include the
+ngrok URL:
 
 ```bash
 cd mobile
@@ -516,20 +530,19 @@ flutter build apk --release \
   --dart-define=API_BASE_URL=https://your-static-domain.ngrok-free.app
 ```
 
-> The `dart_defines.json` file must contain all four keys (`API_BASE_URL`,
-> `MAPTILER_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`) — the app asserts on
-> all of them at startup. Here you override `API_BASE_URL` to the ngrok URL.
-
 APK output:
-```
+
+```text
 mobile/build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Share this file via WhatsApp, Google Drive, or any method. Recipients install it by
-opening the file on their Android device (requires "Install from unknown sources").
+Share this file via WhatsApp, Google Drive, or any method. Recipients install it
+by opening the file on their Android device (requires "Install from unknown
+sources").
 
-> **Note:** The app requires your laptop to be running and ngrok to be active. If
-> your laptop sleeps, the app will show connection errors until you restart the stack.
+> **Note:** The app requires your laptop to be running and ngrok to be active.
+> If your laptop sleeps, the app shows connection errors until you restart the
+> stack. The ngrok URL is a demo-only hostname; do not commit it into Git.
 
 ---
 
@@ -540,49 +553,63 @@ Interactive docs (FastAPI default, enabled): `http://localhost:8000/docs`
 ### Routing
 
 ```
+
 GET /route?start_lat=&start_lon=&end_lat=&end_lon=
 ```
+
 Returns a pedestrian route from Valhalla with encoded polyline.
 
 ```
+
 POST /route/risk
 Body: { "coordinates": [[lat, lon], ...] }
 ```
+
 Scores a route's safety using the cached road segment data and live verified incidents.
 
 ```
+
 GET /route-safe?start_lat=&start_lon=&end_lat=&end_lon=&prefer=balanced
 ```
+
 Combined route fetch + safety scoring in a single call. Each segment includes
 `safety_score`, `shade_score`, `heat_penalty`, and `comfort_score`; the top
 level adds the route-wide comfort score/level. `prefer` selects the comfort
 weighting: `balanced`, `safety`, `shade`, or `heat`.
 
 ```
+
 GET /safety-zones?min_lat=&max_lat=&min_lon=&max_lon=
 ```
+
 Returns GeoJSON FeatureCollection of H3 polygon safety zones within the bounding box.
 
 ### Reporting
 
 ```
+
 POST /reports
 Authorization: Bearer <supabase-jwt>
 Body: { "category": "Poor lighting", "lat": 18.52, "lon": 73.85, "description": "..." }
 ```
+
 Submit an incident report (auth required). Rate limited to 5 requests/hour per
 IP. Enters as `pending`.
 
 ```
+
 GET /reports/recent?limit=50
 ```
+
 Most recent reports for the map feed (limit clamped to 200, no auth).
 
 ```
+
 POST /reports/emergency
 Authorization: Bearer <supabase-jwt>
 Body: { "lat": 18.52, "lon": 73.85, "trusted_contacts": [{"name": "...", "phone": "..."}] }
 ```
+
 Record an SOS alert with real GPS coordinates and trusted contact list.
 Rate limited to 3 requests/10 minutes per IP. The backend only **records** the
 alert — message delivery to contacts is done by the phone via on-device SMS.
@@ -592,6 +619,7 @@ alert — message delivery to contacts is done by the phone via on-device SMS.
 All admin endpoints require `X-Admin-Key: your-admin-key` header.
 
 ```
+
 GET  /admin/reports?status=pending
 POST /admin/reports/{id}/verify
 POST /admin/reports/{id}/reject
@@ -623,7 +651,7 @@ curl -X POST "http://localhost:8000/admin/reports/42/verify" \
 ```bash
 # Backend tests (use the project venv)
 cd backend
-.\.venv\Scripts\python.exe -m pytest tests\ -q   # Windows
+.\\.venv\\Scripts\\python.exe -m pytest tests\\ -q   # Windows
 # or: python -m pytest tests/ -v                  (macOS/Linux, venv activated)
 
 cd ..
@@ -728,26 +756,21 @@ parameter on `/route-safe` selects the weighting profile: `balanced`,
 ## Known limitations
 
 - **Pune-only geography.** The Valhalla tile set covers an OSM western-India
-  extract while the OSMnx scoring pipeline is scoped to Pune. Extending to
-  other cities requires re-running the data pipeline and re-preprocessing
-  Valhalla tiles.
-
-- **Demo dependency on local laptop.** The ngrok distribution model requires the host
-  machine to remain online. A proper cloud deployment (VPS with Docker Compose) would
-  remove this constraint.
-
-- **Road-type heuristics, not point tags.** The pipeline does not currently read
-  point-level OSM tags like `lit=` or `sidewalk=` — lighting and crowd inputs
-  come from road-type heuristics and intersection density. Unmapped/unknown
+  extract while the OSMnx scoring pipeline is scoped to Pune. Extending to other
+  cities requires re-running the data pipeline and re-preprocessing Valhalla
+  tiles.
+- **Demo dependency on local laptop.** The ngrok distribution model requires the
+  host machine to remain online. A proper cloud deployment (VPS with Docker
+  Compose) would remove this constraint.
+- **Road-type heuristics, not point tags.** The pipeline does not currently
+  read point-level OSM tags like `lit=` or `sidewalk=` — lighting and crowd
+  inputs come from road-type heuristics and intersection density. Unmapped/unknown
   road types fall back to middle-of-the-road defaults.
-
 - **Sparse canopy data.** OSM tree/park tagging is sparse in Pune — most street
   segments shade-score 0, so route Shade % is often `0%`/`<1%` unless the route
   passes mapped greenery. Upgrading to satellite-derived canopy would fix this.
-
-- **Heading on emulators.** Map rotation during navigation requires a real device
-  with a compass. Android emulators return a constant heading of 0 or -1.
-
+- **Heading on emulators.** Map rotation during navigation requires a real
+  device with a compass. Android emulators return a constant heading of 0 or -1.
 - **Media uploads.** Attaching photos to incident reports is planned for a future
   release. The button is hidden in v1.
 
@@ -757,11 +780,11 @@ parameter on `/route-safe` selects the weighting profile: `balanced`,
 
 Grounded in what the code actually does:
 
-- **Location data sent to the backend:** your origin/destination coordinates
-  go to the backend with every route request. Active navigation uses the
-  device GPS fixes on-device only (camera anchoring, off-route detection);
-  report/SOS submissions include the GPS coordinate recorded at that moment.
-  The backend does not continuously track you.
+- **Location data sent to the backend:** your origin/destination coordinates go
+  to the backend with every route request. Active navigation uses the device GPS
+  fixes on-device only (camera anchoring, off-route detection); report/SOS
+  submissions include the GPS coordinate recorded at that moment. The backend
+  does not continuously track you.
 - **Incident reports** are stored with the coordinates and link back to your
   Supabase user ID (JWT-derived hash on the server); they enter `pending` and
   are only surfaced on the map/reports feed.
@@ -798,15 +821,17 @@ Grounded in what the code actually does:
 
 ## Contributing
 
-ResilientSteps is a private project in active development. If you have been given access to
-this repository:
+ResilientSteps is a private project in active development. If you have been given
+access to this repository:
 
 1. Do not push directly to `main` — branch, PR, and wait for review
-2. Keep `backend/.env` and `mobile/config/dart_defines.json` out of all commits — both are gitignored
-3. `logic/generate_safety_map.py` may have local dataset changes — check before staging;
-   never commit anything under `logic/outputs/`, `logic/cache/` or `backend/valhalla_tiles/`
+2. Keep `backend/.env` and `mobile/config/dart_defines.json` out of all commits —
+   both are gitignored
+3. `logic/generate_safety_map.py` may have local dataset changes — check before
+   staging; never commit anything under `logic/outputs/`, `logic/cache/` or
+   `backend/valhalla_tiles/`
 4. Before committing:
-   - Backend: `cd backend; .\.venv\Scripts\python.exe -m pytest tests\ -q` (expected: all pass)
+   - Backend: `cd backend; .\\.venv\\Scripts\\python.exe -m pytest tests\\ -q` (expected: all pass)
    - Mobile: `flutter analyze` (expected clean apart from 2 pre-existing plugin
      deprecation infos) and `flutter test` (expected all pass)
 5. PRs should update this README if they change setup, endpoints or scoring behaviour
@@ -819,10 +844,8 @@ License: MIT (see [LICENSE](LICENSE)).
 
 ResilientSteps is built on the shoulders of genuinely excellent open-source work:
 
-- **[OpenStreetMap](https://www.openstreetmap.org)** — the street data that makes
-  safety scoring possible
-- **[Valhalla](https://github.com/valhalla/valhalla)** — open-source routing engine
-  with excellent pedestrian costing
+- **[OpenStreetMap](https://www.openstreetmap.org)** — the street data that makes safety scoring possible
+- **[Valhalla](https://github.com/valhalla/valhalla)** — open-source routing engine with excellent pedestrian costing
 - **[OSMnx](https://github.com/gboeing/osmnx)** — street network analysis in Python
 - **[H3](https://h3geo.org)** — Uber's hexagonal spatial indexing system
 - **[flutter_map](https://github.com/fleaflet/flutter_map)** — Flutter map rendering
