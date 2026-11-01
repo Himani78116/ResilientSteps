@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// All Supabase Auth operations go through this class.
@@ -32,6 +34,59 @@ class AuthService {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Decodes the `exp` claim of a Supabase JWT into a DateTime.
+  /// Returns null if the token is malformed or has no exp claim.
+  static DateTime? expiryOfToken(String? token) {
+    if (token == null) {
+      return null;
+    }
+    final List<String> parts = token.split('.');
+    if (parts.length < 2) {
+      return null;
+    }
+    try {
+      final String payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(parts[1])),
+      );
+      final dynamic exp = (jsonDecode(payload) as Map<String, dynamic>)['exp'];
+      final int? expSeconds = exp is int ? exp : int.tryParse('$exp');
+      if (expSeconds == null) {
+        return null;
+      }
+      return DateTime.fromMillisecondsSinceEpoch(expSeconds * 1000);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns the current access token, refreshing the session first when
+  /// the token will expire within [margin] (avoids submitting stale tokens).
+  Future<String?> getFreshAccessToken({
+    Duration margin = const Duration(minutes: 2),
+  }) async {
+    try {
+      final String? token = accessToken;
+      final DateTime? expiry = expiryOfToken(token);
+      if (expiry != null && DateTime.now().isAfter(expiry.subtract(margin))) {
+        await refreshAccessToken();
+        return accessToken;
+      }
+      return token;
+    } catch (_) {
+      return accessToken;
+    }
+  }
+
+  /// Forces a session refresh and returns the (possibly renewed) token.
+  Future<String?> refreshAccessToken() async {
+    try {
+      await _client.auth.refreshSession();
+    } catch (_) {
+      // Ignore refresh failures; caller falls back to the old token / 401 UX.
+    }
+    return accessToken;
   }
 
   Stream<AuthState> get authStateChanges {

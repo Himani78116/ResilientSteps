@@ -77,20 +77,15 @@ class NgrokHeaderMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(NgrokHeaderMiddleware)
 
-# Register WalkSafe module router under /walksafe and at root for backward compatibility
 app.include_router(walksafe_router, prefix="/walksafe", tags=["ResilientSteps"])
 app.include_router(walksafe_router)
 
-# Register Infrastructure module router under /infra
 app.include_router(infra_router, prefix="/infra", tags=["Infrastructure"])
 
-# Register Waste Management module router under /waste
 app.include_router(waste_router, prefix="/waste", tags=["Waste Management"])
 
-# Register Dashboard module router under /dashboard
 app.include_router(dashboard_router, prefix="/dashboard", tags=["Dashboard"])
 
-# Mount static web dashboard UI (lives in backend/static, next to app/)
 static_dir = Path(__file__).resolve().parent.parent / "static" / "dashboard"
 if static_dir.exists():
     app.mount("/dashboard-ui", StaticFiles(directory=str(static_dir), html=True), name="dashboard-ui")

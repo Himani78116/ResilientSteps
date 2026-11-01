@@ -790,7 +790,6 @@ class _HomeScreenState extends State<HomeScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       elevation: 8,
       items: <PopupMenuEntry<String>>[
-        // Account identity: name and email only, per requested layout.
         PopupMenuItem<String>(
           enabled: false,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -906,11 +905,10 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final NavigationState navState = _navController.navState;
-    // The idle bottom sheet is now compact: just the search field (~76px),
-    // or ~136px tall when a failed destination stays in the sheet.
-    // The planning/loading card is the route-comparison sheet (~400px).
-    // The active collapsed strip (with metric cards) is taller (~300px).
-    // While the origin banner is unanswered it adds ~70px to the idle sheet.
+    // Idle bottom sheet: search field only (~76px, ~136px when a failed
+    // destination stays in the sheet). Planning/loading comparison sheet is
+    // ~400px; the active collapsed strip with metric cards ~300px; unanswered
+    // origin banner adds ~70px.
     final bool originNeedsConfirm =
         _originLabelLoading ||
         (_explicitOrigin == null && !_originConfirmed);

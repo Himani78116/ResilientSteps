@@ -87,7 +87,6 @@ class AuthScreenShell extends StatelessWidget {
           );
         }
 
-        // Phone layout (same as before, slightly tightened).
         return SingleChildScrollView(
           physics: const ClampingScrollPhysics(),
           child: ConstrainedBox(

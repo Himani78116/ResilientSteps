@@ -76,7 +76,6 @@ class ConfigLoader:
         }
 
 
-# Global instance
 _loader = ConfigLoader()
 
 
