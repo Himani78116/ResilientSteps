@@ -136,6 +136,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ..onRerouteRequired = () {
         unawaited(_handleRerouteRequired());
       }
+      ..onRescoreRequired = () {
+        unawaited(_handleRescoreRequired());
+      }
       ..beginTracking();
     _authSubscription = AuthService.instance.authStateChanges.listen((
       AuthState event,
@@ -214,6 +217,30 @@ class _HomeScreenState extends State<HomeScreen> {
       preserveVisibleRoute: true,
     );
     _navController.completeReroute();
+  }
+
+  Future<void> _handleRescoreRequired() async {
+    if (_navController.isRerouting) {
+      return;
+    }
+    final ScoredRoute? route = _navController.selectedRoute;
+    if (route == null || route.points.length < 2) {
+      return;
+    }
+    try {
+      final ScoredRoute? fresh = await _routingService.rescoreRoute(
+        route.points,
+      );
+      if (!mounted || fresh == null) {
+        return;
+      }
+      if (_navController.navState == NavigationState.active &&
+          !_navController.isRerouting) {
+        _navController.applyRescore(fresh);
+      }
+    } catch (e) {
+      debugPrint('HomeScreen: live rescore failed: $e');
+    }
   }
 
   void _resetMapBearing() {

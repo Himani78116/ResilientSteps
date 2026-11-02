@@ -60,31 +60,62 @@ class RoutingService {
       }
     }
 
-    final double? safetyScore = _asDouble(finalScorePayload?['safety_score']);
+    final ScoredRoute? scored = _scoredRouteFromPayload(
+      finalScorePayload,
+      routePoints,
+    );
+    if (scored == null) {
+      return null;
+    }
+    return scored;
+  }
+
+  /// Re-scores an existing route's geometry against current incident data.
+  ///
+  /// Used during active navigation so newly verified reports are reflected in
+  /// the displayed safety/comfort numbers without changing the planned path.
+  /// Returns null when the rescore request fails or carries no safety score.
+  Future<ScoredRoute?> rescoreRoute(List<LatLng> routePoints) async {
+    if (routePoints.length < 2) {
+      return null;
+    }
+    final Map<String, dynamic>? payload = await _fetchRouteRisk(routePoints);
+    if (payload == null) {
+      return null;
+    }
+    return _scoredRouteFromPayload(payload, routePoints);
+  }
+
+  ScoredRoute? _scoredRouteFromPayload(
+    Map<String, dynamic>? payload,
+    List<LatLng> routePoints,
+  ) {
+    final double? safetyScore = _asDouble(payload?['safety_score']);
     if (safetyScore == null) {
       return null;
     }
 
     final double totalDistanceMeters =
-        (_asDouble(finalScorePayload?['distance_km']) ?? 0) > 0
-        ? (_asDouble(finalScorePayload?['distance_km']) ?? 0) * 1000
+        (_asDouble(payload?['distance_km']) ?? 0) > 0
+        ? (_asDouble(payload?['distance_km']) ?? 0) * 1000
         : _polylineDistanceMeters(routePoints);
     final List<RouteSegmentSafety> segments = _parseRouteSegments(
-      finalScorePayload?['segments'],
+      payload?['segments'],
       fallbackSafetyScore: safetyScore,
     );
 
-    return ScoredRoute(
+    final ScoredRoute route = ScoredRoute(
       points: routePoints,
       segments: segments,
       totalDistanceMeters: totalDistanceMeters,
       averageSafetyScore: safetyScore,
       totalRisk: 100 - safetyScore,
-      durationMinutes: _asDouble(finalScorePayload?['duration_minutes']),
-      warning: finalScorePayload?['warning']?.toString(),
-      comfortScore: _asDouble(finalScorePayload?['comfort_score']),
-      comfortLevel: finalScorePayload?['comfort_level']?.toString(),
+      durationMinutes: _asDouble(payload?['duration_minutes']),
+      warning: payload?['warning']?.toString(),
+      comfortScore: _asDouble(payload?['comfort_score']),
+      comfortLevel: payload?['comfort_level']?.toString(),
     );
+    return route;
   }
 
   Future<List<LatLng>> _fetchRoutePoints(LatLng start, LatLng end) async {
