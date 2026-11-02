@@ -16,6 +16,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
 [![PostGIS](https://img.shields.io/badge/PostGIS-enabled-336791?style=flat-square&logo=postgresql)](https://postgis.net)
 [![Valhalla](https://img.shields.io/badge/Routing-Valhalla-FF6B35?style=flat-square)](https://valhalla.github.io)
+[![Setup Guide](https://img.shields.io/badge/Setup_Guide-SETUP.md-8B5CF6?style=flat-square)](SETUP.md)
 [![License](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
 
 </div>
