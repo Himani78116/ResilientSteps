@@ -330,6 +330,7 @@ async def score_route(
                 "incident_weight": round(incident_weight, 3),
                 "incident_penalty": round(incident_penalty, 1),
                 "incident_categories": incident_info.get("incident_categories", []),
+                "max_incident_severity": incident_info.get("max_incident_severity"),
                 "latest_incident_at": incident_info.get("latest_incident_at"),
                 "zone": zone,
             }

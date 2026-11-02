@@ -335,6 +335,7 @@ class ReportingService:
                     report.category,
                     COALESCE(report.confidence, :default_confidence) AS confidence,
                     COALESCE(report.status, 'pending') AS status,
+                    report.severity,
                     report.submitted_at
                 FROM incident_reports report
                 CROSS JOIN route_bounds bounds
@@ -371,12 +372,24 @@ class ReportingService:
                             WHEN submitted_at >= NOW() - INTERVAL '90 days' THEN 0.55
                             ELSE 0.3
                         END
+                        -- severity factor (R-075 option A): 3 = NEUTRAL so
+                        -- legacy rows and the operator default keep the old
+                        -- math; the cap min(25, w*12) bounds the total.
+                        * CASE
+                            WHEN severity IS NULL THEN 1.0
+                            WHEN severity <= 1 THEN 0.5
+                            WHEN severity = 2 THEN 0.75
+                            WHEN severity = 3 THEN 1.0
+                            WHEN severity = 4 THEN 1.25
+                            ELSE 1.5
+                        END
                         * CASE category
 {category_weight_sql}
                         END
                     )::numeric,
                     3
                 ) AS incident_weight,
+                MAX(severity) AS max_incident_severity,
                 MAX(submitted_at) AS latest_incident_at,
                 ARRAY_REMOVE(ARRAY_AGG(DISTINCT category), NULL) AS incident_categories
             FROM matched_incidents
@@ -403,6 +416,13 @@ class ReportingService:
             aggregates[int(mapping["road_segment_id"])] = {
                 "incident_count": int(mapping["incident_count"]),
                 "incident_weight": float(mapping["incident_weight"] or 0.0),
+                # Additive diagnostic (S-132 guards): max verified severity
+                # carries no weight of its own, it only labels the segment.
+                "max_incident_severity": (
+                    int(mapping.get("max_incident_severity"))
+                    if mapping.get("max_incident_severity") is not None
+                    else None
+                ),
                 "incident_categories": [str(category) for category in categories],
                 "latest_incident_at": (
                     latest_incident_at.isoformat()
