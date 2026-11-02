@@ -21,6 +21,14 @@
 
 </div>
 
+<p align="center">
+  <img src="docs/images/navigation-laptop.png" alt="Live navigation in ResilientSteps"
+       width="880"/>
+  <br/>
+  <em>Live navigation — safety-zone overlay, climate metrics on the route card,
+  and one-tap SOS.</em>
+</p>
+
 ---
 
 ## What is ResilientSteps?
@@ -117,6 +125,15 @@ Routes minimise total risk across all segments, not just distance.
 ### Safety-first routing
 Routes scored segment-by-segment against the weighted safety model — picking routes that avoid high-incident stretches. The safety score for your route is shown before you start walking.
 
+<p align="center">
+  <img src="docs/images/source-destination-safety-heat-shade-laptop.png"
+       alt="Climate-Smart route card with safety, shade and heat"
+       width="780"/>
+  <br/>
+  <em>The card explains the pick: safety / shade / heat plus
+  <q>Why this route?</q> comfort — Climate-Smart vs Fastest, with nearby essentials.</em>
+</p>
+
 ### Live danger zone overlay
 H3 hexagon polygons colour-coded green / amber / red based on aggregated street safety scores. Toggleable. Cached offline.
 
@@ -128,6 +145,14 @@ H3 hexagon polygons colour-coded green / amber / red based on aggregated street 
   roughly 40–80 m depending on GPS fix quality, with a 15 s cooldown)
 - Arrival detection near the destination
 
+<p align="center">
+  <img src="docs/images/navigation-mobile.jpeg" alt="Navigation on a phone — ETA, shade, heat and safety chips"
+       width="300"/>
+  <br/>
+  <em>Same turn-by-turn state on a phone: ETA, live shade / heat / safety
+  chips and the one-tap SOS within thumb reach.</em>
+</p>
+
 ### SOS alert
 One-tap emergency alert. Your phone sends SMS messages to your saved trusted
 contacts **directly from the device** (no backend needed for delivery), records
@@ -138,6 +163,14 @@ messages.
 
 ### Incident reporting
 Report poor lighting, suspicious activity, or unsafe infrastructure. Reports enter a moderation queue — they do not affect safety scores until an operator verifies them.
+
+<p align="center">
+  <img src="docs/images/incident-report-modal.png" alt="Incident report modal with category and severity chips"
+       width="340"/>
+  <br/>
+  <em>Category + severity chips in the report modal; the backend's Nugen
+  classifier enriches the text after submit (never blocks on it).</em>
+</p>
 
 ### AI-powered incident classification (Nugen)
 Optional backend LLM classifier (Nugen) enriches each submitted report with a
@@ -167,6 +200,27 @@ NUGEN_MODEL=meta-llama/Llama-3.2-3B-Instruct
 ### Operator moderation
 Simple API-based moderation workflow. Verified reports then affect scores
 dynamically (see API reference) — segment data itself is not rewritten.
+
+<p align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="docs/images/dashboard-city-overview.png"
+             alt="Municipal dashboard — city overview map with report pins"
+             width="420"/><br/>
+        <em><b>City overview</b> — every complaint pin-mapped; click a pin to
+        zoom in and verify</em>
+      </td>
+      <td align="center">
+        <img src="docs/images/dashboard-incident-management.png"
+             alt="Municipal dashboard — incident management table"
+             width="420"/><br/>
+        <em><b>Incident management</b> — AI-enriched severity/confidence, exports,
+        moderation history</em>
+      </td>
+    </tr>
+  </table>
+</p>
 
 ### ngrok-controlled demo URL (optional)
 `ngrok` exposes the local backend over a permanent HTTPS URL. Point the mobile app
@@ -204,7 +258,7 @@ ResilientSteps/
 ├── linuxinstructions.md          Linux-specific setup notes
 ├── LOCAL_SETUP_STATUS.md         Three-terminal runbook + fresh-vs-stale checklist
 ├── config/                       City config (city.yaml: city name, OSM place)
-├── docs/                         Learning log and project documentation
+├── docs/                         Project documentation
 ├── scripts/                      Miscellaneous helper scripts
 
 ├── backend/                      FastAPI server
