@@ -170,7 +170,8 @@ dynamically (see API reference) — segment data itself is not rewritten.
 ### ngrok-controlled demo URL (optional)
 `ngrok` exposes the local backend over a permanent HTTPS URL. Point the mobile app
 at that URL so the APK works anywhere — not just on your local network. No public
-IP, no cloud VPS, and no VPN required. Detailed setup is in **Sharing & distribution** below.
+IP, no cloud VPS, and no VPN required. Detailed setup is in
+**[Sharing & distribution](SETUP.md#sharing--distribution)** in SETUP.md.
 
 ---
 
@@ -198,6 +199,7 @@ IP, no cloud VPS, and no VPN required. Detailed setup is in **Sharing & distribu
 
 ResilientSteps/
 ├── docker-compose.yml            Root stack: valhalla + backend services
+├── SETUP.md                      Setup / installation guide + pitfall checklist
 ├── linuxinstructions.md          Linux-specific setup notes
 ├── LOCAL_SETUP_STATUS.md         Three-terminal runbook + fresh-vs-stale checklist
 ├── config/                       City config (city.yaml: city name, OSM place)
@@ -245,304 +247,30 @@ ResilientSteps/
 
 ---
 
-## Prerequisites
+## Getting started
 
-Before running ResilientSteps locally you need:
+All installation, configuration, run-book, dashboard access, APK sharing and
+troubleshooting documentation lives in **[SETUP.md](SETUP.md)** — including a
+pitfalls section covering the failure modes of every step (Windows port
+conflicts, cold-start timing, dart-define staleness, emulator vs device
+addresses, ngrok behaviour, and more).
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) (stable channel)
-- [Python 3.11+](https://www.python.org/downloads/)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for Valhalla)
-- A [Supabase](https://supabase.com) project with PostGIS enabled
-- A [Maptiler](https://www.maptiler.com) free account (for map tiles)
-- [ngrok](https://ngrok.com) free account with a static domain (for demo sharing)
-
----
-
-## Local setup
-
-### 1 — Clone and configure
-
-```bash
-git clone https://github.com/suzannet-menon/ResilientSteps.git
-cd ResilientSteps
-```
-
-Copy the environment template and fill in your values:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Open `backend/.env` and set:
-
-```env
-# Supabase
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_KEY=your-service-role-key
-SUPABASE_JWT_SECRET=your-jwt-secret
-
-# Database (Supabase direct connection string)
-DATABASE_URL=postgresql+asyncpg://postgres:password@db.your-project-ref.supabase.co:5432/postgres
-
-# Routing
-VALHALLA_BASE_URL=http://localhost:8002
-
-# Admin moderation (generate with: python -c "import secrets; print(secrets.token_urlsafe(36))")
-ADMIN_API_KEY=choose-a-long-random-string
-
-# Optional: crash reporting
-SENTRY_DSN=your-sentry-dsn
-```
-
-The mobile side has no standalone `.env` — its configuration is via
-dart-defines. See `mobile/.env.example` for the same four values as a template.
-
-## Environment configuration reference
-
-The backend reads `backend/.env` at runtime; the Flutter app receives its values
-baked in at build time (dart-defines / `mobile/config/dart_defines.json`).
-Privileged keys (service role, admin key, JWT secret) belong only in the backend
-`.env` — never in dart-defines, never in Git.
-
-| Variable | Purpose | Required | Belongs in |
-|---|---|---|---|
-| `SUPABASE_URL` | Supabase REST/auth base URL | Yes | Backend + mobile |
-| `SUPABASE_ANON_KEY` | Public anon key (RLS-enforced reads) | Yes | Backend + mobile |
-| `SUPABASE_SERVICE_KEY` | Privileged service-role operations | Yes | **Backend only** |
-| `SUPABASE_JWT_SECRET` | Local Supabase JWT validation (HS256) | Yes (auth) | **Backend only** |
-| `DATABASE_URL` | Postgres/PostGIS async connection | Yes | **Backend only** |
-| `VALHALLA_BASE_URL` | Routing engine (default `http://localhost:8002`) | Yes | Backend |
-| `ADMIN_API_KEY` | Header key for `/admin/*` moderation | Yes (moderation) | **Backend only** |
-| `MAPTILER_API_KEY` | Map tile access | Yes | Mobile (dart-define) |
-| `SENTRY_DSN` | Crash reporting | Optional | Backend |
-| `PHOTON_BASE_URL` | Placeholder in `.env.example`; not read by backend code today | Optional | Backend |
-
-### Which address for the mobile app?
-
-| Target | `API_BASE_URL` |
-|---|---|
-| Flutter web (Chrome) on the same machine | `http://127.0.0.1:8000` |
-| Android emulator | `http://10.0.2.2:8000` — android's alias for the host loopback; plain `localhost` refers to the *emulator itself* |
-| Physical phone | `http://<your-computer's-LAN-IP>:8000` — phone and computer must be on the same Wi-Fi with the backend started with `--host 0.0.0.0` |
-| Shared demo APK | ngrok HTTPS URL (see below) |
-
-Dart-defines are **frozen into the binary at build time** — commits do not update
-an installed APK; rebuild is required.
-
-### 2 — Set up the database
-
-Enable the PostGIS extension in your Supabase dashboard:
-> Database → Extensions → search "postgis" → enable
-
-Run migrations:
-
-```bash
-cd backend
-python -m venv .venv
-
-# Windows
-.\\.venv\\Scripts\\activate
-
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -r requirements.txt
-alembic upgrade head
-```
-
-### 3 — Start Valhalla (routing engine)
-
-The root `docker-compose.yml` defines both `valhalla` and `backend`. Valhalla
-downloads the OSM western-zone (western India) extract on first run (~500 MB).
-This takes 10–20 minutes. Subsequent starts reuse the `valhalla_tiles` volume.
-
-```bash
-# From the project root — requires backend/.env to exist (the backend
-# service mounts ./backend/.env, and docker compose validates it)
-docker compose up -d valhalla
-```
-
-Wait until the terminal shows `Valhalla server running on port 8002`, then verify:
-
-```bash
-curl http://localhost:8002/status
-# Expected: JSON response with tileset_last_modified
-```
-
-### 4 — Populate the safety database
-
-Run the ingest pipeline to score every walkable street in Pune and generate H3
-safety zones. Takes 10–20 minutes on first run. The OSMnx graph is cached locally
-so re-runs are fast.
-
-```bash
-cd logic
-python generate_safety_map.py
-```
-
-When complete you will see (counts and versions are illustrative — they depend on
-the current OSM data and pipeline run):
+Quick path:
 
 ```text
-Written 449,342 segments to database.
-Written 1,204 safety zone polygons.
-Done. Dataset version: 20250103-141200 | Time: 847.3s
+1. backend/.env  (copy from backend/.env.example — REQUIRED before steps 3 & 6)
+2. Database     → alembic upgrade head (backend/.venv)
+3. Valhalla     → docker compose up -d valhalla        (10–20 min first run)
+4. Safety data  → python generate_safety_map.py        (logic/)
+5. Shade data   → python generate_shade_map.py         (logic/, after step 4)
+6. Backend      → uvicorn app.main:app :8000, wait for /ready {"ready":true}
+7. App          → mobile/config/dart_defines.json + flutter run -d chrome
+   Dashboard    → http://localhost:8000/dashboard-ui/  (served by the backend)
 ```
 
-### 5 — Populate the shade scores
-
-Safety-map rows start with `shade_score = NULL`; without this step every route
-shows "Shade: -". The script fetches OSM canopy features (trees, parks, forests,
-grass) once, scores a ~15 m buffer around each street segment, and updates the
-rows written by `generate_safety_map.py` — it never inserts segments, so it must
-run *after* step 4. It reads the same `DATABASE_URL` from `backend/.env`, and
-creates the `(osm_way_id, dataset_version)` index it needs on first run.
-Expect 10–30 minutes on first run (Overpass download); afterwards it runs from
-the local cache.
-
-```bash
-cd logic
-python generate_shade_map.py
-```
-
-When complete you will see (counts again illustrative):
-
-```text
-Updating shade for dataset_version 20250103-141200...
-Done writing 450,000 rows, committing...
-Scored 450,000 segments. Mean shade 1.9 (skipped 1,102 edges without an OSM way id).
-Done. Time: 1234.5s
-```
-
-> The shade job is **idempotent** — re-running rewrites the same rows and does not
-> re-ingest geometry. Both seeds never overwrite the DB schema and can be re-run
-> safely.
-
-### 6 — Start the backend
-
-```bash
-cd backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-Verify:
-
-```bash
-curl http://localhost:8000/
-# Expected: {"message":"ResilientSteps API is running","status":"online"}
-curl http://localhost:8000/ready
-# Expected: {"ready":true} once the safety dataset cache is warmed (503 during warmup)
-```
-
-### 7 — Run the mobile app
-
-The app reads four compile-time constants (dart-defines). Create
-`mobile/config/dart_defines.json` (gitignored — never committed) with all four
-keys; the app asserts on all of them at startup:
-
-```json
-{
-  "API_BASE_URL": "http://127.0.0.1:8000",
-  "MAPTILER_API_KEY": "your-maptiler-key",
-  "SUPABASE_URL": "https://your-project-ref.supabase.co",
-  "SUPABASE_ANON_KEY": "your-anon-key"
-}
-```
-
-Then run with the override for your target (dart-defines are **baked at build
-time** — after any change, rebuild; APKs do not pick up new values from commits):
-
-```bash
-cd mobile
-flutter pub get
-
-# Create config/dart_defines.json first, then:
-flutter run -d chrome --dart-define-from-file=config/dart_defines.json
-
-# Android emulator (10.0.2.2 = host loopback from inside the emulator):
-# flutter run -d <emulator-id> --dart-define-from-file=config/dart_defines.json \
-#   --dart-define=API_BASE_URL=http://10.0.2.2:8000
-
-# Physical Android device (same WiFi network as your laptop):
-# flutter run -d <device-id> --dart-define-from-file=config/dart_defines.json \
-#   --dart-define=API_BASE_URL=http://YOUR-LAN-IP:8000
-```
-
-> If the backend calls fail silently and the route shows **no shade score and no
-> heat index at all**, check `API_BASE_URL` first — the backend always returns
-> `heat_penalty` (it degrades to `0.0` → "Pleasant" if the weather API is down),
-> so a missing heat index means the app never received the scored payload.
-> Verify with:
-> `curl "http://API_BASE_URL/route-safe?start_lat=18.5204&start_lon=73.8567&end_lat=18.53&end_lon=73.86"`
-
----
-
-## Sharing & distribution
-
-Instead of shipping a local-only APK or provisioning a dedicated server, use
-**ngrok** to expose the local backend through a single HTTPS URL that anyone can
-open on their phone. The APK then works on any device on the internet, and you
-can iterate on the laptop while the tunnel stays up.
-
-### 1 — Sign up and claim a static domain
-
-1.  Create a free account at [ngrok.com](https://ngrok.com).
-2.  Claim a static domain at [dashboard.ngrok.com/domains](https://dashboard.ngrok.com/domains) (free tier allows a handful of domains).
-3.  Install ngrok (brew, winget, or the [downloads page](https://ngrok.com/downloads) for your OS.
-
-### 2 — Authenticate the CLI
-
-```bash
-ngrok config add-authtoken YOUR_AUTHTOKEN
-```
-
-Obtain the token from [dashboard.ngrok.com/get-started/your-authtoken](https://dashboard.ngrok.com/get-started/your-authtoken).
-
-### 3 — Start the tunnel
-
-Open three terminals:
-
-```bash
-# Terminal 1 — Valhalla
-docker compose -f backend/docker-compose.yml up valhalla
-
-# Terminal 2 — Backend
-cd backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# Terminal 3 — ngrok tunnel
-ngrok http --domain=your-static-domain.ngrok-free.app 8000
-```
-
-Verify at `https://your-static-domain.ngrok-free.app/` — you should see the
-backend health response.
-
-### 4 — Bake the ngrok URL into the APK
-
-`dart-defines` are frozen at build time, so the mobile build must include the
-ngrok URL:
-
-```bash
-cd mobile
-flutter build apk --release \
-  --dart-define-from-file=config/dart_defines.json \
-  --dart-define=API_BASE_URL=https://your-static-domain.ngrok-free.app
-```
-
-APK output:
-
-```text
-mobile/build/app/outputs/flutter-apk/app-release.apk
-```
-
-Share this file via WhatsApp, Google Drive, or any method. Recipients install it
-by opening the file on their Android device (requires "Install from unknown
-sources").
-
-> **Note:** The app requires your laptop to be running and ngrok to be active.
-> If your laptop sleeps, the app shows connection errors until you restart the
-> stack. The ngrok URL is a demo-only hostname; do not commit it into Git.
+Endpoint/verification basics stay here: see [API reference](#api-reference)
+below. The test-verification commands are in
+[Running tests in SETUP.md](SETUP.md#running-tests).
 
 ---
 
@@ -642,25 +370,6 @@ curl "http://localhost:8000/admin/reports?status=pending" \
 # Verify report ID 42
 curl -X POST "http://localhost:8000/admin/reports/42/verify" \
   -H "X-Admin-Key: your-admin-key"
-```
-
----
-
-## Running tests
-
-```bash
-# Backend tests (use the project venv)
-cd backend
-.\\.venv\\Scripts\\python.exe -m pytest tests\\ -q   # Windows
-# or: python -m pytest tests/ -v                  (macOS/Linux, venv activated)
-
-cd ..
-
-# Flutter checks
-cd mobile
-flutter pub get
-flutter analyze     # expected clean (2 pre-existing plugin deprecation infos)
-flutter test        # expected 100% pass
 ```
 
 ---
@@ -834,7 +543,9 @@ access to this repository:
    - Backend: `cd backend; .\\.venv\\Scripts\\python.exe -m pytest tests\\ -q` (expected: all pass)
    - Mobile: `flutter analyze` (expected clean apart from 2 pre-existing plugin
      deprecation infos) and `flutter test` (expected all pass)
-5. PRs should update this README if they change setup, endpoints or scoring behaviour
+5. PRs should update this README if they change endpoints or scoring behaviour,
+   and [SETUP.md](SETUP.md) if they change installation, configuration or
+   run-book steps
 
 License: MIT (see [LICENSE](LICENSE)).
 
