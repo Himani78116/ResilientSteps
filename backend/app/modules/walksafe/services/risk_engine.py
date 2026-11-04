@@ -9,6 +9,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_scoring_config
+from app.modules.walksafe.services import shade_sidecar
 from app.modules.walksafe.services.reporting_service import reporting_service
 from app.modules.walksafe.services.safety_dataset_cache import safety_dataset_cache
 from app.modules.walksafe.services.weather_service import weather_service
@@ -210,6 +211,17 @@ async def score_route(
         db=db,
     )
     try:
+        sidecar_shade = await shade_sidecar.fetch_shade(
+            road_segment_ids=road_segment_ids,
+            dataset_version=snapshot.road_dataset_version,
+        )
+    except Exception:
+        LOGGER.warning(
+            "Failed to load sidecar shade; using OSM shade values.",
+            exc_info=True,
+        )
+        sidecar_shade = {}
+    try:
         shade_corrections = await reporting_service.get_segment_shade_corrections(
             road_segment_ids=road_segment_ids,
             dataset_version=snapshot.road_dataset_version,
@@ -254,6 +266,8 @@ async def score_route(
         )
 
         base_shade_score = segment.get("segment_shade_score")
+        if road_segment_id is not None and road_segment_id in sidecar_shade:
+            base_shade_score = sidecar_shade[road_segment_id]
         shade_correction = (
             float(shade_corrections.get(road_segment_id, 0.0))
             if road_segment_id is not None

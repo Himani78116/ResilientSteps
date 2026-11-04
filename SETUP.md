@@ -91,6 +91,7 @@ Privileged keys (service role, admin key, JWT secret) belong only in the backend
 | `MAPTILER_API_KEY` | Map tile access | Yes | Mobile (dart-define) |
 | `SENTRY_DSN` | Crash reporting | Optional | Backend |
 | `PHOTON_BASE_URL` | Placeholder in `.env.example`; not read by backend code today | Optional | Backend |
+| `SHADE_DB_URL` | Local satellite-shade sidecar (Step 5b; leave unset for OSM-only shade) | Optional | **Backend only** |
 
 ---
 
@@ -194,6 +195,130 @@ Done. Time: 1234.5s
 > The shade job is **idempotent** — re-running rewrites the same rows and does not
 > re-ingest geometry. Both seed scripts never touch the DB schema and can be re-run
 > safely.
+
+---
+
+## Step 5b — OPTIONAL: satellite shade accuracy (Google Earth Engine)
+
+**Skip this section entirely and the app still works.** Everything below is
+opt-in: the backend only touches the satellite shade sidecar when
+`SHADE_DB_URL` is set. Unset (the default), routes use the OSM-canopy shade
+from Step 5 and nothing extra runs — no Docker service, no GEE account, no
+batch. `docker compose up` never starts the sidecar unless you ask for it:
+
+```bash
+docker compose up -d shade-db   # optional, local Postgres on port 5433
+```
+
+**Why bother:** OSM canopy tags are sparse in most cities (91% of Pune's
+segments score 0 from tags alone). The satellite batch derives per-segment
+NDVI from Sentinel-2 imagery, which fixes exactly that data gap.
+
+**What it writes:** a *separate local* Postgres table (`segment_shade`), keyed
+by `(road_segment_id, dataset_version)`. The main database from Step 1 is
+**never written to** by the batch — it is only read. Route-time, the backend
+merges: satellite value where available, OSM value otherwise, and your
+verified citizen reports always correct on top.
+
+**What you need:** a Google Cloud project registered for Earth Engine
+noncommercial use (free), a service-account JSON key, and two Python packages
+that are deliberately **not** in `requirements.txt` (optional dependency):
+
+```bash
+.\.venv\Scripts\python.exe -m pip install earthengine-api google-auth
+```
+
+See the agent log entries S-072–S-092 for the registration walk-through if
+you need it.
+
+**Run it in slices — you do NOT need a full-day session.** The batch is
+checkpointed after every 2,000 segments and fully resumable, so run it across
+several evenings:
+
+```bash
+cd logic
+
+# 1. Pilot: score 6 segments and eyeball them before any writes
+python generate_shade_map_v2.py --pilot 6 --project YOUR_GEE_PROJECT_ID
+
+# 2. Write the pilot into the sidecar (only after reviewing the dry-run)
+python generate_shade_map_v2.py --pilot 6 --apply --project YOUR_GEE_PROJECT_ID
+
+# 3. Expand as much as you like per session; --limit keeps it short
+python generate_shade_map_v2.py --limit 20000 --apply --project YOUR_GEE_PROJECT_ID
+
+# 4. Later sessions resume from the checkpoint exactly where it stopped
+python generate_shade_map_v2.py --apply --resume --chunk-size 2000 --project YOUR_GEE_PROJECT_ID
+```
+
+Default mode is **dry-run** (computes and reports, writes nothing). Add
+`--apply` only when you want sidecar writes. Point the backend at the sidecar
+by adding `SHADE_DB_URL` to `backend/.env` (template value is in
+`.env.example`), then restart the backend. Coverage grows segment-by-segment
+as you run more slices; routes blend whatever is available at request time.
+
+Typical full-city time: 10–16 hours of mostly GEE queue-waiting. There is no
+penalty for stopping at any point — partial coverage is fully functional.
+
+### What the scores mean (imagery vintage)
+
+Each sidecar value is the **median NDVI of all cloud-free Sentinel-2 pixels**
+over that segment's ~10 m corridor across a **trailing 365-day window ending
+on the day you run the batch** (default `--days 365`; override with
+`--start YYYY-MM-DD --end YYYY-MM-DD`, or `--days 90` for a season-specific
+pass). So a score reads as "typical canopy over the last year" — not a
+single-day snapshot. The `updated_at` column is the *write* timestamp, not
+the imagery date. A full-year median blends seasons; re-run with a shorter
+window if you need worst-case (pre-monsoon) or greenest-case shading.
+
+### Monitoring, stopping, resuming
+
+Progress lives in three places (nothing appears in the GEE web UI — see
+below):
+
+```bash
+# one line per 2,000-row chunk (processed / gee / fallback / elapsed)
+tail -f logic/outputs/shade_v2_full.log
+
+# live row count and % of the city
+docker exec resilientsteps_shade_db psql -U shade -d shade_db \
+  -tc "SELECT count(*) FROM segment_shade;"
+
+# exact resume checkpoint
+cat logic/outputs/shade_v2_state.json
+```
+
+Stop any time by killing the batch process only (leave the backend alone):
+
+```bash
+# Windows: kill only processes whose command line contains the script name
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object { $_.CommandLine -like "*generate_shade_map_v2*" } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+Resume later with the same command plus `--resume` — it continues from the
+checkpoint; at most one in-flight chunk (~2,000 rows) is lost. Upserts are
+idempotent (`ON CONFLICT ... DO UPDATE`), so nothing is ever duplicated.
+Completion writes a summary to `logic/outputs/shade_v2_last_run.txt`.
+
+### What you will (and won't) see on Google's side
+
+- **Task Manager on code.earthengine.google.com stays empty** — interactive
+  API calls are not recorded as tasks, and the batch creates no Earth Engine
+  assets.
+- **Cloud Console → Earth Engine API → Quotas/Metrics** shows the request
+  waves (each hump = one chunk).
+- The consumer "Google Earth" app is unrelated and shows nothing.
+
+### After the run — zero runtime dependence on Google
+
+The app **never calls GEE at request time**. `/route-safe` reads the local
+sidecar (millisecond queries); if Google were unreachable tomorrow, every
+route scores identically. GEE is contacted only when a human re-runs the
+batch — e.g. a quarterly seasonal refresh with the same `--apply --resume`
+command. Nothing is scheduled, nothing is billed (noncommercial tier is
+free), and nothing keeps running after the batch exits.
 
 ---
 

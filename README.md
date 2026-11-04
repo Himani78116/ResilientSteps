@@ -494,6 +494,24 @@ across matched segments.
 > **Data caveat:** OSM's canopy tagging in Pune is sparse — most segments
 > score 0. A 0% reading is expected in unmapped areas, not a data error.
 
+### Optional upgrade: satellite shade (Google Earth Engine)
+
+Shade accuracy can be upgraded from OSM canopy tags to per-segment NDVI
+derived from Sentinel-2 imagery. This is **strictly optional** and off by
+default: without `SHADE_DB_URL` set, nothing runs and the OSM shade above is
+used everywhere. When enabled, a resumable batch (runnable in slices across
+several evenings — no all-day session needed) scores segments into a separate
+local sidecar database; the main database is never written to, and verified
+citizen reports always correct the satellite estimate on top.
+
+Each score is the **median NDVI over a trailing 365-day window** ending on
+the batch run date (a "typical canopy over the last year" value, not a
+single-day snapshot; shorter windows are a flag away). After the batch
+completes, the app **never contacts Google at runtime** — routes read the
+local sidecar only; GEE is touched again solely when someone re-runs the
+batch for a seasonal refresh. Full setup, monitoring and stop/resume:
+[SETUP.md — Step 5b](SETUP.md#step-5b--optional-satellite-shade-google-earth-engine).
+
 ### Heat penalty (`backend/.../services/weather_service.py`)
 
 Live Open-Meteo `apparent_temperature` (keyless, no API account):
