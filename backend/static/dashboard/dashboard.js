@@ -10,14 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const mapNotice = document.getElementById('mapNotice');
 
   // Restore saved key — never fall back to a default, the operator must paste one.
-  adminKeyInput.value = localStorage.getItem('cityos_admin_key') || '';
+  adminKeyInput.value = localStorage.getItem('resilientsteps_admin_key') || '';
 
   saveKeyBtn.addEventListener('click', () => {
     if (!adminKey()) {
       alert('Enter your admin key before saving.');
       return;
     }
-    localStorage.setItem('cityos_admin_key', adminKey());
+    localStorage.setItem('resilientsteps_admin_key', adminKey());
     alert('Admin key saved.');
     loadDashboardData();
   });
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const suffix = [type, status].filter(Boolean).join('_');
-    const base = 'cityos_reports_export' + (suffix ? `_${suffix}` : '');
+    const base = 'resilientsteps_reports_export' + (suffix ? `_${suffix}` : '');
     let content;
     if (format === 'csv') {
       content = toCsv(filtered);

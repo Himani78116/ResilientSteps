@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../services/reporting_api_service.dart';
 import '../services/sos_service.dart';
+import '../services/waste_reporting_api_service.dart';
 import 'gradient_button.dart';
 
 enum IncidentModalMode { report, sos }
@@ -104,9 +105,27 @@ class _IncidentModalState extends State<IncidentModal> {
       label: 'Cool shaded spot',
       value: 'Cool shaded spot / water available',
     ),
+    // Waste module pills (same round chip row). Selecting one submits to
+    // /waste/reports so the dashboard Waste column receives it
+    // (report_type='waste') — not to the safety endpoint.
+    _IncidentCategory(label: 'Overflowing bin', value: 'overflowing_bin'),
+    _IncidentCategory(label: 'Illegal dumping', value: 'illegal_dumping'),
+    _IncidentCategory(label: 'Construction debris', value: 'construction_debris'),
+    _IncidentCategory(label: 'Garbage burning', value: 'garbage_burning'),
+    _IncidentCategory(label: 'Dead animal', value: 'dead_animal'),
   ];
 
+  static const Set<String> _wasteCategoryValues = <String>{
+    'overflowing_bin',
+    'illegal_dumping',
+    'construction_debris',
+    'garbage_burning',
+    'dead_animal',
+  };
+
   final ReportingApiService _reportingApiService = ReportingApiService();
+  final WasteReportingApiService _wasteReportingApiService =
+      WasteReportingApiService();
   final TextEditingController _descriptionController = TextEditingController();
 
   String _selectedIncidentType = _incidentTypes.first.value;
@@ -134,19 +153,42 @@ class _IncidentModalState extends State<IncidentModal> {
     });
 
     final int severity = _severity;
+    final String description = _descriptionController.text.trim();
+    final bool isWasteReport = _wasteCategoryValues.contains(
+      _selectedIncidentType,
+    );
     final String userHash =
         'mobile-${DateTime.now().millisecondsSinceEpoch.toString()}';
 
     try {
-      await _reportingApiService.submitIncidentReport(
-        userHash: userHash,
-        incidentType: _selectedIncidentType,
-        severity: severity,
-        latitude: widget.initialLocation!.latitude,
-        longitude: widget.initialLocation!.longitude,
-        description: _descriptionController.text.trim(),
-      );
+      if (isWasteReport) {
+        await _wasteReportingApiService.submitWasteReport(
+          category: _selectedIncidentType,
+          severity: severity,
+          latitude: widget.initialLocation!.latitude,
+          longitude: widget.initialLocation!.longitude,
+          description: description,
+        );
+      } else {
+        await _reportingApiService.submitIncidentReport(
+          userHash: userHash,
+          incidentType: _selectedIncidentType,
+          severity: severity,
+          latitude: widget.initialLocation!.latitude,
+          longitude: widget.initialLocation!.longitude,
+          description: description,
+        );
+      }
     } on ReportSubmissionException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _submitting = false;
+        _errorMessage = e.message;
+      });
+      return;
+    } on WasteReportSubmissionException catch (e) {
       if (!mounted) {
         return;
       }
@@ -166,9 +208,11 @@ class _IncidentModalState extends State<IncidentModal> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(
-          'Report submitted. It will influence safety scores once reviewed.',
+          isWasteReport
+              ? 'Waste report submitted. It will be reviewed by the city team.'
+              : 'Report submitted. It will influence safety scores once reviewed.',
         ),
       ),
     );
